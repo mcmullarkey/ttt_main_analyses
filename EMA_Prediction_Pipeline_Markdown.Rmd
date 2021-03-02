@@ -365,6 +365,19 @@ ts_fresh_features_with_id <- ts_fresh_features %>%
 
 ```{r writing a function to create dynamic time warp features}
 
+## Need this function for imputation
+
+## Creating function to do necessary imputation
+
+tidy_imputation <- function(.data){
+
+  tidyverse_lags_test <- .data %>%
+  dplyr::select(-c(beepvar, id_int, number_of_responses)) %>%
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  ))
+
+}
+
 ## See this blog post https://eiko-fried.com/modeling-idiographic-and-nomothetic-dynamics-of-255-depressed-inpatients/ and this paper https://bmcmedicine.biomedcentral.com/articles/10.1186/s12916-020-01867-5
 ## Also this code https://eiko-fried.com/wp-content/uploads/Code-Hebbrecht-et-al-2020-dtw.txt
 
@@ -462,272 +475,18 @@ toc()
 
 ```
 
-```{r creating date related features}
-
-## Create a summary statistics function that works on long form data
-
-# have to create helper function that only takes one value from the calculation of mode, since returning multiple values can break the summarise function See: https://rdrr.io/cran/DescTools/man/Mode.html
-
-mode_one_value <- function(x){
-  
-  initial_mode <- Mode(x)
-  
-  final_mode <- ifelse(length(initial_mode) == 1, initial_mode, initial_mode[1])
-  return(final_mode)
-}
-
-```
-
-```{r creating weekday vs weekend features}
-
-get_summ_stats_ema_data_long <- function(x){
-  summ_stats_long <- x %>% 
-  dplyr::select(-c(time,beepvar, id_int, number_of_responses)) %>%
-  group_by(id_ema) %>% 
-  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
-  )) %>%
-  dplyr::select(-c(day_index.num:weekend))%>% 
-  mutate(across(where(is.numeric), ~as.integer(.x))) %>% 
-  dplyr::summarise(across(
-    .cols = is.numeric, 
-    .fns = list(mean = mean, sd = sd, min = min, max = max, median = median, kurtosis = kurtosi, skewness = skew, rmssd = rmssd, mode = mode_one_value), 
-    .names = "{col}_{fn}"
-    )) %>% 
-    distinct(id_ema, .keep_all = T)
-}
-
-# Get the data
-
-train_data_with_date_df <- ema_data_with_dep_outcome_num_resp %>%
-  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
-  complete(time = 1:56)
-
-# Add time series signature
-recipe_date_timeseries <- recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_date_df) %>%
-    update_role(id_ema, new_role = "id") %>% 
-    step_timeseries_signature(day) %>% 
-    step_nzv(all_predictors())
-
-## Now breaking out summary statistics by weekday vs. weekend
-
-set.seed(33)
-train_data_with_date_structure <- recipe_date_timeseries %>% 
-  prep(verbose = TRUE) %>% 
-  bake(new_data = train_data_with_date_df) %>% 
-  dplyr::select(-contains("dass")) %>% 
-  mutate(weekend = case_when(
-    
-    day_wday.lbl == "Monday" | day_wday.lbl == "Tuesday" |day_wday.lbl == "Wednesday" | day_wday.lbl == "Thursday" | day_wday.lbl == "Friday" ~ 0,
-    day_wday.lbl == "Saturday" | day_wday.lbl == "Sunday" ~ 1
-    
-  )) %>% 
-  group_split(weekend) %>% 
-  map(get_summ_stats_ema_data_long)
-
-date_df_names <- train_data_with_date_structure[[1]] %>% 
-  names() 
-
-col_names_date_df_weekday <- glue("{date_df_names}_weekday")
-
-col_names_date_df_weekend <- glue("{date_df_names}_weekend")
-
-
-names(train_data_with_date_structure[[1]]) <- col_names_date_df_weekday
-names(train_data_with_date_structure[[2]]) <- col_names_date_df_weekend
-
-train_data_with_weekday_weekend_initial_features <- map_dfc(train_data_with_date_structure, ~.x) %>% 
-  rename(id_temp = id_ema_weekday) %>% 
-  dplyr::select(-contains("id_ema")) %>% 
-  rename(id_ema = id_temp)
-
-weekend_var_names <- train_data_with_weekday_weekend_initial_features %>%
-  dplyr::select(contains("weekend")) %>%
-  names()
-
-weekday_var_names <- train_data_with_weekday_weekend_initial_features %>%
-  dplyr::select(contains("weekday")) %>%
-  names()
-
-create_ratio_vars_weekday_vs_weekend <- function(.data){
-
-  weekday_var_names <- .data %>%
-  dplyr::select(contains("weekday")) %>%
-  names()
-
-  weekend_var_names <- .data %>%
-  dplyr::select(contains("weekend")) %>%
-  names()
-
-  map2_dfc(.x = weekday_var_names, .y = weekend_var_names, ~{
-
-    train_data_with_weekday_weekend_initial_features %>%
-      mutate("{weekday_var_names}" =: .x/.y)
-
-  })
-
-}
-
-train_data_with_weekday_weekend_ratio_features <- train_data_with_weekday_weekend_initial_features %>%
-  create_ratio_vars_weekday_vs_weekend()
-
-
-## Have to figure out how to rename all the variables by adding weekday or weekend suffix
-
-## Can calculate things like summary statistics for weekdays and weekends, ratio of those stats, week 1 and week 2, ratio of those stats, on day of university closing until end of semester, on day Dutch gov issued list of COVID-19 rules
-
-```
-
-```{r creating week 1 vs week 2 features}
-
-## Creating function to create names dynamically for the outputted statistics (we get stress_1_lag_1_acf as opposed to just Lag_1)
-
-creating_dtw_distances <- function(.data){
-
-  row_names <- .data %>% 
-    dplyr::select(-id_ema) %>% 
-    names()
-  column_names <- .data %>% 
-    dplyr::select(-id_ema) %>% 
-    names()
-  
-  distance <- parDist(.data %>% dplyr::select(-id_ema) %>%  as.matrix(), method = "dtw", 
-    window.type = "sakoechiba", window.size = 2, step.pattern = "symmetricP0")
-  
-  distance <- as.matrix(distance)
-  distance <- distance[c(1:18),c(1:18)]
-  
-  colnames(distance) <- column_names
-  
-  distance <- as_tibble(distance) %>% 
-    mutate(var_names = row_names) %>% 
-    relocate(var_names, everything())
-}
-
-# heatmap_ema <- function(dist){
-#     pheatmap(dist %>% as.matrix(), 
-#          display_numbers = TRUE, border_color = FALSE, 
-#          clustering_method = "ward.D2", treeheight_row = 0, 
-#          treeheight_col = 0, color = colorRampPalette(brewer.pal(n = 7, name = "RdYlBu"))(100), 
-#          number_format = "%.0f", legend = FALSE)
-# }
-# 
-# heatmap_ema(distance)
-
-## Creating function to pivot the DTW results wider to create the features + renaming them using the names we dynamically generated
-
-pivoting_dtw_results_wider <- function(.data){
-.data %>% 
-  as_tibble() %>% 
-  pivot_wider(
-    names_from = var_names,
-    values_from = c(stress_1:time_at_home)
-  )
-}
-
-## Creating duplicate names for DTW features to help remove them from the feature set later (Since they're all 0)
-
-exclude_dtw_same_var_features <- function(.data){
-  
-  ready_for_dup_name <- ema_data_with_dep_outcome_num_resp %>% 
-    dplyr::select(-c(time, beepvar, id_int, number_of_responses)) %>%
-    dplyr::select(where(is.numeric)) %>% 
-    names()
-  
-  col_names_dup <- glue("{ready_for_dup_name}_{ready_for_dup_name}")
-
- .data <- .data %>%
-  dplyr::select(-col_names_dup)
-}
-
-## Do it once, but then accidentally do the whole thing
-
-# Have to create id only column data frame to bind back with this function at the end
-
-tidyverse_lags_id_only <- train_nested_ema_data %>% 
-  dplyr::select(-ema_data, -dass_dep_deteriorate_or_not)
-
-# Now the function
-
-tic()
-train_data_with_week_1_week_2_stats <- ema_data_with_dep_outcome_num_resp %>%
-  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
-  group_by(id_ema) %>% 
-  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
-  ungroup() %>% 
-  as_tsibble(key = id_ema, index = time) %>% 
-  group_by(id_ema) %>% 
-  tidy_imputation() %>% 
-  dplyr::select(where(is.numeric)) %>% 
-  ungroup() %>%
-  as_tibble() %>% 
-  mutate() %>% 
-  group_split(id_ema) %>% 
-  map(creating_dtw_distances) %>%
-  map_dfr(pivoting_dtw_results_wider) %>% 
-  exclude_dtw_same_var_features() %>% 
-  bind_cols(tidyverse_lags_id_only) %>% 
-  relocate(id_ema, contains("dass"), everything()) %>% 
-  dplyr::select(-contains("dass"))
-toc()
-
-```
-
-```{r creating moving average features}
-
-## Used this resource https://www.storybench.org/how-to-calculate-a-rolling-average-in-r/
-
-## Doing it once with stress_1
-
-ema_data_with_dep_outcome_num_resp %>%
-  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
-  complete(time = 1:56) %>% 
-  tidy_imputation() %>% 
-  group_by(id_ema) %>% 
-  mutate(stress_1_3_mov_avg = zoo::rollmean(stress_1, k = 3, fill = NA),
-         stress_1_5_mov_avg = zoo::rollmean(stress_1, k = 5, fill = NA),
-         stress_1_7_mov_avg = zoo::rollmean(stress_1, k = 7, fill = NA)) %>% 
-  filter(str_detect(id_ema, "25299")) %>% 
-  dplyr::select(id_ema, stress_1, stress_1_3_mov_avg, stress_1_5_mov_avg, stress_1_7_mov_avg)
-
-```
-
-```{r get auto-arima features}
-
-## Using this resource https://cran.r-project.org/web/packages/modeltime/vignettes/getting-started-with-modeltime.html
-
-```
-
 ```{r running all preprocessing once}
 
-## Now let's try the nesting procedure and doing this cleaning process on each person
-plan(multisession, workers = 7)
+## Merge tsfresh with dynamic time warp features
 
 tic()
-train_data_with_summ_stats <- train_nested_ema_data %>% 
-  mutate(ema_summ_stats = future_map(ema_data, get_summ_stats_ema_data)) %>% # Will turn into step_mutate
-  mutate(ema_quantile_stats = future_map(ema_data, get_quantiles_ema_data)) %>%  # Will turn into step_mutate
-  mutate(ema_spec_stats = future_map(ema_data, do_spec_analysis)) %>%
-  unnest(c(ema_summ_stats, ema_quantile_stats, ema_spec_stats)) %>% # Will need to create a custom step function
-  distinct(id_ema, .keep_all = T) %>% # Will need to create a custom step function (Filter exists as a step, but group_by doesn't so can't shortcut)
-  dplyr::select(-ema_data) %>% # Will turn into step_rm
-  relocate(id_ema, dass_dep_deteriorate_or_not, everything())
-toc()# Only for viewing here, won't be in final recipe
-# step_BoxCox(all_predictors()) %>% # Built in, will help make predictors more symmetrical
-# step_normalize(all_predictors) %>% # Built in, will normalize all predictors for the autoencoder
-# add_role(all_predictors(), new_role = "non_neural_net_predictors") %>% # Giving role to these predictors to facilitate removal post-autoencoder
-# step_autoencoder(all_predictors()) %>%  # Will need to create a custom step function
-# step_rm(role = "non_neural_net_predictors") # Removing all non autoencoder generated predictors
-
-## Merge lags with other dataset
-
-train_data_preprocessing <- train_data_with_summ_stats %>% 
-  left_join(train_data_with_acf_stats, by = "id_ema") %>%
-  left_join(train_data_with_pacf_stats, by = "id_ema") %>%
-  left_join(train_data_with_auto_stats, by = "id_ema") %>%
+train_data_preprocessing <- ts_fresh_features_with_id %>% 
   left_join(train_data_with_dtw_stats, by = "id_ema") %>%
   # left_join(train_data_with_weekday_weekend_initial_features, by = "id_ema") %>%
   mutate(across(everything(), ~ifelse(is.nan(.x), NA, .x))) %>% 
-  mutate(across(everything(), ~ifelse(is.infinite(.x), NA, .x)))
+  mutate(across(everything(), ~ifelse(is.infinite(.x), NA, .x))) %>% 
+  bind_cols(train_outcome_wide)
+toc()
 
 ## Using prep and bake with recipes to preprocess data (Getting rid of near zero variance features, normalizing all variables (necessary preprocessing for the neural network autoencoder), and using K nearest neighbors to impute missing predictor data
 
@@ -937,7 +696,7 @@ best_model_weights %>% save_model_hdf5("best_autoencoder_auc.h5")
 rec_ema_pca <- 
   recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
   update_role(id_ema, new_role = "id") %>% 
-  step_pca(all_predictors(), threshold = 0.95)
+  step_pca(all_predictors(), num_comp = 25)
 
 ## Could also work on making threshold tunable
 
