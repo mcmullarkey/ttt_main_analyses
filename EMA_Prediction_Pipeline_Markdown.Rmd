@@ -1,0 +1,2234 @@
+---
+title: "Practicing_EMA_Prediction_Pipeline"
+author: "Michael Mullarkey"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 5
+    toc_float:
+      collapsed: no
+      smooth_scroll: no
+geometry: margin=0.50in
+---
+
+```{r setup, include=FALSE, cache = FALSE}
+require("knitr")
+## setting working directory
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE, include = FALSE)
+
+```
+
+```{r}
+
+## Setting up pyton within Rstudio
+
+## Using these steps https://support.rstudio.com/hc/en-us/articles/360023654474-Installing-and-Configuring-Python-with-RStudio
+## Though for step 3 I used conda to make sure I used a later Python off the system-install path as outlined here https://support.rstudio.com/hc/en-us/articles/360022909454-Best-Practices-for-Using-Python-with-RStudio-Connect
+
+if(!require(reticulate)){install.packages('reticulate')}
+library(reticulate)
+
+reticulate::py_config()
+
+```
+
+```{r loading packages}
+
+if(!require(tidymodels)){install.packages('tidymodels')}
+library(tidymodels)
+if(!require(readr)){install.packages('readr')}
+library(readr)
+if(!require(broom.mixed)){install.packages('broom.mixed')}
+library(broom.mixed)
+if(!require(tidyverse)){install.packages('tidyverse')}
+library(tidyverse)
+if(!require(nycflights13)){install.packages('nycflights13')}
+library(nycflights13)
+if(!require(skimr)){install.packages('skimr')}
+library(skimr)
+if(!require(modeldata)){install.packages('modeldata')}
+library(modeldata)
+if(!require(ranger)){install.packages('ranger')}
+library(ranger)
+if(!require(vip)){install.packages('vip')}
+library(vip)
+if(!require(gt)){install.packages('gt')}
+library(gt)
+if(!require(ggthemes)){install.packages('ggthemes')}
+library(ggthemes)
+if(!require(xgboost)){install.packages('xgboost')}
+library(xgboost)
+if(!require(furrr)){install.packages('furrr')}
+library(furrr)
+if(!require(kernlab)){install.packages('kernlab')}
+library(kernlab)
+if(!require(mlbench)){install.packages('mlbench')}
+library(mlbench)
+if(!require(scales)){install.packages('scales')}
+library(scales)
+if(!require(tidyposterior)){install.packages('tidyposterior')}
+library(tidyposterior)
+if(!require(rstanarm)){install.packages('rstanarm')}
+library(rstanarm)
+if(!require(tictoc)){install.packages('tictoc')}
+library(tictoc)
+# library(devtools)
+# devtools::install_github("abresler/nbastatR")
+library(nbastatR)
+if(!require(heatmaply)){install.packages('heatmaply')}
+library(heatmaply)
+if(!require(ggmosaic)){install.packages('ggmosaic')}
+library(ggmosaic)
+if(!require(splines)){install.packages('splines')}
+library(splines)
+if(!require(doMC)){install.packages('doMC')}
+library(doMC)
+if(!require(glue)){install.packages('glue')}
+library(glue)
+if(!require(stacks)){install.packages('stacks')}
+library(stacks)
+if(!require(janitor)){install.packages('janitor')}
+library(janitor)
+if(!require(future)){install.packages('future')}
+library(future)
+if(!require(reticulate)){install.packages('reticulate')}
+library(reticulate)
+if(!require(furrr)){install.packages('furrr')}
+library(furrr)
+if(!require(tuber)){install.packages('tuber')}
+library(tuber)
+if(!require(tidytext)){install.packages('tidytext')}
+library(tidytext)
+if(!require(topicmodels)){install.packages('topicmodels')}
+library(topicmodels)
+if(!require(wordcloud)){install.packages('wordcloud')}
+library(wordcloud)
+if(!require(reshape2)){install.packages('reshape2')}
+library(reshape2)
+if(!require(youtubecaption)){install.packages('youtubecaption')}
+library(youtubecaption)
+if(!require(textrecipes)){install.packages('textrecipes')}
+library(textrecipes)
+if(!require(stopwords)){install.packages('stopwords')}
+library(stopwords)
+if(!require(hardhat)){install.packages('hardhat')}
+library(hardhat)
+if(!require(poissonreg)){install.packages('poissonreg')}
+library(poissonreg)
+if(!require(remotes)){install.packages('remotes')}
+library(remotes)
+# remotes::install_github('jorvlan/raincloudplots')
+library(raincloudplots)
+if(!require(DescTools)){install.packages('DescTools')}
+library(DescTools)
+if(!require(readxl)){install.packages('readxl')}
+library(readxl)
+if(!require(modeest)){install.packages('modeest')}
+library(modeest)
+if(!require(psych)){install.packages('psych')}
+library(psych)
+# install_local("DTVEM_1.0010.tar.gz") # http://www.nicholasjacobson.com/project/dtvem/
+library(DTVEM)
+# Loading DTVEM dependencies
+if(!require(mgcv)){install.packages('mgcv')}
+library(mgcv)
+if(!require(zoo)){install.packages('zoo')}
+library(zoo)
+if(!require(OpenMx)){install.packages('OpenMx')}
+library(OpenMx)
+if(!require(imputeTS)){install.packages('imputeTS')}
+library(imputeTS)
+if(!require(rlang)){install.packages('rlang')}
+library(rlang)
+if(!require(RANN)){install.packages('RANN')}
+library(RANN)
+if(!require(baguette)){install.packages('baguette')}
+library(baguette)
+if(!require(rules)){install.packages('rules')}
+library(rules)
+if(!require(timetk)){install.packages('timetk')}
+library(timetk)
+if(!require(tidyquant)){install.packages('tidyquant')}
+library(tidyquant)
+if(!require(tsibble)){install.packages('tsibble')}
+library(tsibble)
+if(!require(feasts)){install.packages('feasts')}
+library(feasts)
+if(!require(dtw)){install.packages('dtw')}
+library(dtw)
+if(!require(parallelDist)){install.packages('parallelDist')}
+library(parallelDist)
+if(!require(pheatmap)){install.packages('pheatmap')}
+library(pheatmap)
+if(!require(diffdf)){install.packages('diffdf')}
+library(diffdf)
+
+## Let's set our number of cores for this document (May differ across computers)
+
+registerDoMC(cores = 7)
+
+```
+
+## Reading in the Data
+
+```{r reading in pre post data}
+
+## Reading in pre/post data for the college students
+
+pre_post_data <- read_csv("fried_mh_covid_data_pre_post.csv") %>% 
+  clean_names()
+
+```
+
+```{r reading in ema data}
+
+## Reading in EMA data
+
+ema_data <- read_csv("fried_mh_covid_data_ema.csv") %>% 
+  clean_names() %>% 
+  dplyr::rename(id_ema = id, stress_1 = q1, stress_2 = q2, anx_1 = q3, anx_2 = q4, dep_1 = q5, dep_2 = q6,
+         fatigue_1 = q7, hunger_1 = q8, lonely_1 = q9, anger_1 = q10, time_soc_contact = q11, time_soc_media_use = q12, time_listen_to_music = q13, 
+         time_procrast = q14, time_outdoors = q15, time_occupied_covid = q16, time_think_health_covid = q17, time_at_home = q18) %>% 
+  dplyr::mutate(across(
+    where(is.numeric),
+    as.integer
+  ))
+
+```
+
+```{r creating ema data with outcome data}
+
+## Creating outcomes for whether depression and/or anxiety clinically significantly deteriorated over the course of the study
+
+reduced_pre_post_data_with_outcomes <- pre_post_data %>% 
+  dplyr::select(id, pre1:pre21, post1:post21) %>% 
+  mutate(b_dass_depress_mean = rowMeans(dplyr::select(pre_post_data, pre3, pre5, pre10, pre13, pre16, pre17, pre21), na.rm = TRUE),
+         f_dass_depress_mean = rowMeans(dplyr::select(pre_post_data, post3, post5, post10, post13, post16, post17, post21), na.rm = TRUE),
+         b_dass_anx_mean = rowMeans(dplyr::select(pre_post_data, pre2, pre4, pre7, pre15, pre19, pre20), na.rm = TRUE),
+         f_dass_anx_mean = rowMeans(dplyr::select(pre_post_data, post2, post4, post7, post15, post19, post20), na.rm = TRUE),
+         dass_dep_deteriorate_or_not = ifelse(f_dass_depress_mean - b_dass_depress_mean > 0.55, 1, 0),
+         dass_anx_deteriorate_or_not = ifelse(f_dass_anx_mean - b_dass_anx_mean > 0.64, 1, 0)) %>% # 9th item is misssing at post, for equivalence also took it out at pre, should double check what's happening here
+  dplyr::select(-c(pre1:pre21), -c(post1:post21),-contains("b_dass"),-contains("f_dass")) %>% 
+  filter(dass_dep_deteriorate_or_not == 1 | dass_dep_deteriorate_or_not == 0) %>%  
+  filter(dass_anx_deteriorate_or_not == 1 | dass_anx_deteriorate_or_not == 0)
+
+reduced_pre_post_data_with_dep_outcome <- reduced_pre_post_data_with_outcomes %>% 
+  dplyr::select(id_ema = id, dass_dep_deteriorate_or_not)
+
+reduced_pre_post_data_with_anx_outcome <- reduced_pre_post_data_with_outcomes %>% 
+  dplyr::select(id_ema = id, dass_anx_deteriorate_or_not)
+
+## Binding depression outcome to EMA data since we'll need that for when we nest the data later
+
+ema_data_with_dep_outcome <- ema_data %>% 
+  left_join(reduced_pre_post_data_with_dep_outcome, by = "id_ema") %>% 
+  filter(!is.na(dass_dep_deteriorate_or_not)) %>% 
+  mutate(dass_dep_deteriorate_or_not = as.factor(dass_dep_deteriorate_or_not))
+
+## And same with anxiety outcome
+
+ema_data_with_anx_outcome <- ema_data %>% 
+  left_join(reduced_pre_post_data_with_anx_outcome, by = "id_ema") %>% 
+  filter(!is.na(dass_anx_deteriorate_or_not)) %>% 
+  mutate(dass_anx_deteriorate_or_not = as.factor(dass_anx_deteriorate_or_not))
+
+## Seeing what % of folks did or didn't deteriorate a clinically significant amount
+
+reduced_pre_post_data_with_dep_outcome %>%
+  filter(id_ema %in% ema_data_with_dep_outcome$id_ema) %>% 
+  group_by(dass_dep_deteriorate_or_not) %>% 
+  tally()
+  
+reduced_pre_post_data_with_anx_outcome %>%
+  filter(id_ema %in% ema_data_with_anx_outcome$id_ema) %>% 
+  group_by(dass_anx_deteriorate_or_not) %>% 
+  tally()
+  
+
+
+```
+
+```{r adding a time variable to ema data to allow for later feature engineering}
+
+# Have to create a Time (in my case, 'time') variable where we sequence within each id from 1 to however many responses you give
+
+# Tallying the number of responses per participant in the EMA
+
+ema_data_tally <- ema_data_with_dep_outcome %>% 
+  dplyr::group_by(id_ema) %>% 
+  dplyr::tally() %>% 
+  dplyr::select(id_ema, number_of_responses = n) %>% 
+  ungroup()
+
+## Joining this to a temporary data frame for naming/testing reasons (If this is where the error happens, want to be able to track it)
+
+ema_data_temp <- ema_data_with_dep_outcome %>% 
+  left_join(ema_data_tally, by = "id_ema")
+
+## Creating the time variable + the id in integer form since the DTVEM functions crash if ID is a character value
+
+ema_data_with_dep_outcome_num_resp <- ema_data_temp %>% 
+  dplyr::group_by(id_ema) %>% 
+  dplyr::mutate(time = 1:number_of_responses) %>% 
+  ungroup() %>% 
+  dplyr::mutate(id_int = as.numeric(as.factor(id_ema)))
+
+```
+
+```{r nesting the ema data for wide format and rsample breaking things up into training and testing}
+
+## Nesting the data so the ema data can be included within a wide format (Helps us break up into training/testing + create custom recipe steps)
+
+nested_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
+  group_by(id_ema, dass_dep_deteriorate_or_not) %>%
+  nest() %>% 
+  dplyr::rename(ema_data = data)
+
+## Break into training/testing data
+
+set.seed(33)
+# Put 1/2 of the data into the training set, stratify based on the ts_diff outcome 
+nested_ema_data_split <- initial_split(nested_ema_data, prop = 1/2, strata = dass_dep_deteriorate_or_not)
+
+# Create data frames for the two sets:
+train_nested_ema_data <- training(nested_ema_data_split)
+test_nested_ema_data  <- testing(nested_ema_data_split)
+
+```
+
+```{r creating long form training and testing data}
+
+train_long_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
+  dplyr::select(id_ema, contains("_1"), contains("_2"),contains("dass"),contains("time")) %>% 
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>%
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  )) %>%
+  ungroup() %>% 
+  print()
+
+train_outcome_wide <- train_nested_ema_data %>% 
+  unnest() %>% 
+  distinct(id_ema, .keep_all = T) %>% 
+  ungroup() %>% 
+  dplyr::select(contains("dass"))
+
+test_long_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
+  dplyr::select(id_ema, contains("_1"), contains("_2"),contains("time")) %>% 
+  filter(id_ema %in% test_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  )) %>% 
+  ungroup() %>%
+  print()
+
+```
+
+```{python trying to run tsfresh on the long training data}
+
+## Using https://tsfresh.readthedocs.io/en/latest/text/quick_start.html
+## If I try to impute/filter I end up with a different number of rows, so that's not super helpful. Might be names collisons with the example I loaded earlier or something else about how I'm running the Python code I don't understand yet
+
+from tsfresh import extract_features
+
+extracted_features = extract_features(r.train_long_ema_data, column_id="id_ema", column_sort="time")
+
+```
+
+```{r looking at the tsfresh object}
+
+## A function for selecting non-na values
+
+not_all_na <- function(x) {!all(is.na(x))}
+
+# A funciton for selecting non all 0 values
+
+not_all_zero <- function(x) {!all(x == 0)}
+
+tic()
+ts_fresh_features <- as_tibble(py$extracted_features) %>% 
+  clean_names() %>% 
+  select_if(not_all_na) %>% 
+  select_if(not_all_zero)
+toc()
+
+glimpse(ts_fresh_features) 
+
+ts_fresh_features_with_id <- ts_fresh_features %>% 
+  bind_cols(train_nested_ema_data %>% ungroup() %>% dplyr::select(id_ema)) %>% 
+  relocate(id_ema, everything())
+  
+
+```
+
+```{r writing functions to do summary stats preprocessing once as a test before creating a recipe step}
+
+## Now I'm wondering what if I start out with wide data by having a nested tibble as my ema data, then creating custom recipe steps from there. That way we don't have to change from long to wide as part of the process, just deal with nested data 
+
+## Here's a "hacky" unnest function that might help at some point https://github.com/tidymodels/tune/issues/115
+
+## This might also be helpful, though not quite what I'm looking for https://stackoverflow.com/questions/62687664/map-tidymodels-process-to-a-list-group-by-or-nest
+
+## This youtube video might also be helpful, though again not exactly what I'm looking for https://www.youtube.com/watch?v=KVquDqOgsyY
+
+# First let's create a summary stats function
+
+get_summ_stats_ema_data <- function(x){
+  summ_stats <- x %>% 
+  dplyr::select(-c(time:beepvar, id_int, number_of_responses)) %>%
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  )) %>%   
+  dplyr::summarise(across(
+    .cols = is.numeric, 
+    .fns = list(mean = mean, sd = sd, min = min, max = max, median = median, kurtosis = kurtosi, skewness = skew, rmssd = rmssd, mode = Mode), na.rm = T, 
+    .names = "{col}_{fn}"
+    ))
+}
+
+train_data_with_brief_summ_stats <- train_nested_ema_data %>% 
+  mutate(ema_summ_stats = map(ema_data, get_summ_stats_ema_data)) %>% 
+  unnest(ema_summ_stats) %>%
+  distinct(id_ema, .keep_all = T) %>% 
+  print()
+
+## And a quantiles function
+
+p <- c(0.2, 0.4, 0.6, 0.8)
+  p_names <- map_chr(p, ~paste0("perc_",.x*100))
+  p_funs <- purrr::map(p, ~partial(quantile, probs = .x, na.rm = T)) %>% 
+  set_names(nm = p_names)
+
+get_quantiles_ema_data <- function(x){
+  
+  quantile_stats <- x %>% 
+  dplyr::select(-c(time:beepvar, id_int, number_of_responses)) %>% 
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  )) %>%   
+  summarise(across(
+    .cols = is.numeric,
+    .fns = p_funs,
+    .names = "{col}_{fn}"
+                   ))
+}
+
+train_data_with_quantile_stats <- train_nested_ema_data %>% 
+  dplyr::mutate(ema_quant_stats = purrr::map(ema_data, get_quantiles_ema_data)) %>% 
+  unnest(ema_quant_stats) %>%
+  distinct(id_ema, .keep_all = T)
+
+```
+
+```{r writing function for spectral analysis preprocessing once before creating a recipe step}
+
+## Going to try the function with spline interpolation instead. Originally wrote a bunch of extra code trying to solve this problem while continuing to use the kalman filter approach, but it was going nowhere so switched to this instead
+
+do_spec_analysis <- function(x){
+  
+  spec_stats <- x %>% 
+  dplyr::select(-c(time:beepvar, id_int, number_of_responses)) %>% 
+  mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  )) %>%   
+  dplyr::summarise(across(where(is.numeric), ~ as.numeric(fft(.x)[1]), .names = "{col}_{{fft}}"
+                   ))
+}
+
+## While the code fails in the chunk immediately above with kalman, this one works
+
+train_data_with_spec_stats <- train_nested_ema_data %>% 
+  mutate(ema_spec_stats = map(ema_data, do_spec_analysis)) %>% 
+  unnest(ema_spec_stats) %>%
+  distinct(id_ema, .keep_all = T) %>% 
+  print()
+
+```
+
+```{r actually creating autocorrelation features unique to each person across lags}
+
+## Creating function to do necessary imputation
+
+tidy_imputation <- function(.data){
+
+  tidyverse_lags_test <- .data %>%
+  dplyr::select(-c(beepvar, id_int, number_of_responses)) %>%
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  ))
+
+}
+
+## Creating function to create names dynamically for the outputted statistics (we get stress_1_lag_1_acf as opposed to just Lag_1)
+
+create_acf_names <-function(.data, var_name_input){
+var_name <- {{var_name_input}}
+k_func <- 1:10
+col_names_tidy <- glue("{var_name}_lag_{k_func}_acf")
+
+ .data %>%
+  rename_with(~str_c(col_names_tidy), where(is.numeric))
+}
+
+## Creating function to pivot the ACF results wider to create the features + renaming them using the names we dynamically generated
+
+pivoting_acf_results_wider <- function(.data){
+.data %>% 
+  as_tibble() %>% 
+  pivot_wider(
+    names_from = lag,
+    values_from = acf,
+  )
+}
+
+## Running all these functions together for one variable to test, also takes ~0.5 seconds per variable, unlike previous version that took ~2 minutes
+
+tic()
+tidyverse_lags_test_reduced_acf <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  ACF(stress_1, lag_max = 10) %>% 
+  group_split(id_ema) %>%  # This creates a list of dataframes by id, since pivot_wider won't work given it would create redundant column names
+  map_dfr(pivoting_acf_results_wider) %>% 
+  create_acf_names(var_name_input = "stress_1")
+toc()
+
+## Now running them across all variables
+
+lag_stats_names <- ema_data_with_dep_outcome_num_resp %>% 
+    dplyr::select(-c(time:beepvar, id_int, number_of_responses)) %>% 
+    dplyr::select(where(is.numeric)) %>% 
+    names()
+
+train_data_with_acf_stats <- map_dfc(lag_stats_names, ~{
+  
+tidyverse_lags_test_reduced_acf <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  ACF(.data[[.x]], lag_max = 10) %>% 
+  group_split(id_ema) %>%  # This creates a list of dataframes by id, since pivot_wider won't work given it would create redundant column names
+  map_dfr(pivoting_acf_results_wider) %>% 
+  create_acf_names(var_name_input = .x)
+  
+}) %>% 
+  rename(temp_id = id_ema...1) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = temp_id)
+
+
+```
+
+```{r actually creating partial autocorrelation features unique to each person across lags}
+
+## Creating function to create names dynamically for the outputted statistics (we get stress_1_lag_1_acf as opposed to just Lag_1)
+
+create_pacf_names <-function(.data, var_name_input){
+var_name <- {{var_name_input}}
+k_func <- 1:10
+col_names_tidy <- glue("{var_name}_lag_{k_func}_pacf")
+
+ .data %>%
+  rename_with(~str_c(col_names_tidy), where(is.numeric))
+}
+
+## Creating function to pivot the ACF results wider to create the features + renaming them using the names we dynamically generated
+
+pivoting_pacf_results_wider <- function(.data){
+.data %>% 
+  as_tibble() %>% 
+  pivot_wider(
+    names_from = lag,
+    values_from = pacf,
+  )
+}
+
+## Running all these functions together for one variable to test, also takes ~0.5 seconds per variable, unlike previous version that took ~2 minutes
+
+tic()
+tidyverse_lags_test_reduced_pacf <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  PACF(stress_1, lag_max = 10) %>% 
+  group_split(id_ema) %>%  # This creates a list of dataframes by id, since pivot_wider won't work given it would create redundant column names
+  map_dfr(pivoting_pacf_results_wider) %>% 
+  create_pacf_names(var_name_input = "stress_1")
+toc()
+
+## Now running them across all variables
+
+lag_stats_names <- ema_data_with_dep_outcome_num_resp %>% 
+    dplyr::select(-c(time:beepvar, id_int, number_of_responses)) %>% 
+    dplyr::select(where(is.numeric)) %>% 
+    names()
+
+train_data_with_pacf_stats <- map_dfc(lag_stats_names, ~{
+  
+tidyverse_lags_test_reduced_pacf <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  PACF(.data[[.x]], lag_max = 10) %>% 
+  group_split(id_ema) %>%  # This creates a list of dataframes by id, since pivot_wider won't work given it would create redundant column names
+  map_dfr(pivoting_pacf_results_wider) %>% 
+  create_pacf_names(var_name_input = .x)
+  
+}) %>% 
+  rename(temp_id = id_ema...1) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = temp_id)
+
+
+```
+
+```{r getting other automatically available features via the feasts r package}
+
+## Creating function to create names dynamically for the outputted statistics (we get stress_1_lag_1_acf as opposed to just Lag_1)
+
+create_auto_feature_names <-function(.data, var_name_input){
+
+  current_name <- .data %>% 
+    dplyr::select(where(is.numeric)) %>% 
+    names()
+  
+  var_name <- {{var_name_input}}
+  
+  col_names_tidy <- glue("{var_name}_{current_name}")
+
+ .data %>%
+  rename_with(~str_c(col_names_tidy), where(is.numeric))
+}
+
+## Running all these functions together for one variable to test, also takes ~0.5 seconds per variable, unlike previous version that took ~2 minutes
+
+tic()
+tidyverse_lags_test_reduced_auto_features <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  features(stress_1, feature_set(pkgs = "feasts")) %>% 
+  dplyr::select(-acf10, -acf1,-pacf5) %>% 
+  create_auto_feature_names(var_name_input = "stress_1")
+toc()
+
+## Now running them across all variables
+
+lag_stats_names <- ema_data_with_dep_outcome_num_resp %>% 
+    dplyr::select(-c(time:beepvar, id_int, number_of_responses)) %>% 
+    dplyr::select(where(is.numeric)) %>% 
+    names()
+
+train_data_with_auto_stats <- map_dfc(lag_stats_names, ~{
+  
+tidyverse_lags_test_reduced_auto <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  features(.data[[.x]], feature_set(pkgs = "feasts")) %>% 
+  dplyr::select(-acf10, -acf1,-pacf5) %>% 
+  create_auto_feature_names(var_name_input = .x)
+  
+}) %>% 
+  rename(temp_id = id_ema...1) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = temp_id)
+
+```
+
+```{r writing a function to create dynamic time warp features}
+
+## See this blog post https://eiko-fried.com/modeling-idiographic-and-nomothetic-dynamics-of-255-depressed-inpatients/ and this paper https://bmcmedicine.biomedcentral.com/articles/10.1186/s12916-020-01867-5
+## Also this code https://eiko-fried.com/wp-content/uploads/Code-Hebbrecht-et-al-2020-dtw.txt
+
+## Creating function to generate Dynamic Time Warp distance values for each pair of time series within each person
+
+creating_dtw_distances <- function(.data){
+
+  row_names <- .data %>% 
+    dplyr::select(-id_ema) %>% 
+    names()
+  column_names <- .data %>% 
+    dplyr::select(-id_ema) %>% 
+    names()
+  
+  distance <- parDist(.data %>% dplyr::select(-id_ema) %>%  as.matrix(), method = "dtw", 
+    window.type = "sakoechiba", window.size = 2, step.pattern = "symmetricP0")
+  
+  distance <- as.matrix(distance)
+  distance <- distance[c(1:18),c(1:18)]
+  
+  colnames(distance) <- column_names
+  
+  distance <- as_tibble(distance) %>% 
+    mutate(var_names = row_names) %>% 
+    relocate(var_names, everything())
+}
+
+# heatmap_ema <- function(dist){
+#     pheatmap(dist %>% as.matrix(), 
+#          display_numbers = TRUE, border_color = FALSE, 
+#          clustering_method = "ward.D2", treeheight_row = 0, 
+#          treeheight_col = 0, color = colorRampPalette(brewer.pal(n = 7, name = "RdYlBu"))(100), 
+#          number_format = "%.0f", legend = FALSE)
+# }
+# 
+# heatmap_ema(distance)
+
+## Creating function to pivot the DTW results wider to create the features + renaming them using the names we dynamically generated
+
+pivoting_dtw_results_wider <- function(.data){
+.data %>% 
+  as_tibble() %>% 
+  pivot_wider(
+    names_from = var_names,
+    values_from = c(stress_1:time_at_home)
+  )
+}
+
+## Creating duplicate names for DTW features to help remove them from the feature set later (Since they're all 0)
+
+exclude_dtw_same_var_features <- function(.data){
+  
+  ready_for_dup_name <- ema_data_with_dep_outcome_num_resp %>% 
+    dplyr::select(-c(time, beepvar, id_int, number_of_responses)) %>%
+    dplyr::select(where(is.numeric)) %>% 
+    names()
+  
+  col_names_dup <- glue("{ready_for_dup_name}_{ready_for_dup_name}")
+
+ .data <- .data %>%
+  dplyr::select(-col_names_dup)
+}
+
+## Do it once, but then accidentally do the whole thing
+
+# Have to create id only column data frame to bind back with this function at the end
+
+tidyverse_lags_id_only <- train_nested_ema_data %>% 
+  dplyr::select(-ema_data, -dass_dep_deteriorate_or_not)
+
+# Now the function
+
+tic()
+train_data_with_dtw_stats <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  dplyr::select(where(is.numeric)) %>% 
+  ungroup() %>%
+  as_tibble() %>% 
+  dplyr::select(-time) %>% 
+  group_split(id_ema) %>% 
+  map(creating_dtw_distances) %>%
+  map_dfr(pivoting_dtw_results_wider) %>% 
+  exclude_dtw_same_var_features() %>% 
+  bind_cols(tidyverse_lags_id_only) %>% 
+  relocate(id_ema, contains("dass"), everything()) %>% 
+  dplyr::select(-contains("dass"))
+toc()
+
+
+```
+
+```{r creating date related features}
+
+## Create a summary statistics function that works on long form data
+
+# have to create helper function that only takes one value from the calculation of mode, since returning multiple values can break the summarise function See: https://rdrr.io/cran/DescTools/man/Mode.html
+
+mode_one_value <- function(x){
+  
+  initial_mode <- Mode(x)
+  
+  final_mode <- ifelse(length(initial_mode) == 1, initial_mode, initial_mode[1])
+  return(final_mode)
+}
+
+```
+
+```{r creating weekday vs weekend features}
+
+get_summ_stats_ema_data_long <- function(x){
+  summ_stats_long <- x %>% 
+  dplyr::select(-c(time,beepvar, id_int, number_of_responses)) %>%
+  group_by(id_ema) %>% 
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  )) %>%
+  dplyr::select(-c(day_index.num:weekend))%>% 
+  mutate(across(where(is.numeric), ~as.integer(.x))) %>% 
+  dplyr::summarise(across(
+    .cols = is.numeric, 
+    .fns = list(mean = mean, sd = sd, min = min, max = max, median = median, kurtosis = kurtosi, skewness = skew, rmssd = rmssd, mode = mode_one_value), 
+    .names = "{col}_{fn}"
+    )) %>% 
+    distinct(id_ema, .keep_all = T)
+}
+
+# Get the data
+
+train_data_with_date_df <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  complete(time = 1:56)
+
+# Add time series signature
+recipe_date_timeseries <- recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_date_df) %>%
+    update_role(id_ema, new_role = "id") %>% 
+    step_timeseries_signature(day) %>% 
+    step_nzv(all_predictors())
+
+## Now breaking out summary statistics by weekday vs. weekend
+
+set.seed(33)
+train_data_with_date_structure <- recipe_date_timeseries %>% 
+  prep(verbose = TRUE) %>% 
+  bake(new_data = train_data_with_date_df) %>% 
+  dplyr::select(-contains("dass")) %>% 
+  mutate(weekend = case_when(
+    
+    day_wday.lbl == "Monday" | day_wday.lbl == "Tuesday" |day_wday.lbl == "Wednesday" | day_wday.lbl == "Thursday" | day_wday.lbl == "Friday" ~ 0,
+    day_wday.lbl == "Saturday" | day_wday.lbl == "Sunday" ~ 1
+    
+  )) %>% 
+  group_split(weekend) %>% 
+  map(get_summ_stats_ema_data_long)
+
+date_df_names <- train_data_with_date_structure[[1]] %>% 
+  names() 
+
+col_names_date_df_weekday <- glue("{date_df_names}_weekday")
+
+col_names_date_df_weekend <- glue("{date_df_names}_weekend")
+
+
+names(train_data_with_date_structure[[1]]) <- col_names_date_df_weekday
+names(train_data_with_date_structure[[2]]) <- col_names_date_df_weekend
+
+train_data_with_weekday_weekend_initial_features <- map_dfc(train_data_with_date_structure, ~.x) %>% 
+  rename(id_temp = id_ema_weekday) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = id_temp)
+
+weekend_var_names <- train_data_with_weekday_weekend_initial_features %>%
+  dplyr::select(contains("weekend")) %>%
+  names()
+
+weekday_var_names <- train_data_with_weekday_weekend_initial_features %>%
+  dplyr::select(contains("weekday")) %>%
+  names()
+
+create_ratio_vars_weekday_vs_weekend <- function(.data){
+
+  weekday_var_names <- .data %>%
+  dplyr::select(contains("weekday")) %>%
+  names()
+
+  weekend_var_names <- .data %>%
+  dplyr::select(contains("weekend")) %>%
+  names()
+
+  map2_dfc(.x = weekday_var_names, .y = weekend_var_names, ~{
+
+    train_data_with_weekday_weekend_initial_features %>%
+      mutate("{weekday_var_names}" =: .x/.y)
+
+  })
+
+}
+
+train_data_with_weekday_weekend_ratio_features <- train_data_with_weekday_weekend_initial_features %>%
+  create_ratio_vars_weekday_vs_weekend()
+
+
+## Have to figure out how to rename all the variables by adding weekday or weekend suffix
+
+## Can calculate things like summary statistics for weekdays and weekends, ratio of those stats, week 1 and week 2, ratio of those stats, on day of university closing until end of semester, on day Dutch gov issued list of COVID-19 rules
+
+```
+
+```{r creating week 1 vs week 2 features}
+
+## Creating function to create names dynamically for the outputted statistics (we get stress_1_lag_1_acf as opposed to just Lag_1)
+
+creating_dtw_distances <- function(.data){
+
+  row_names <- .data %>% 
+    dplyr::select(-id_ema) %>% 
+    names()
+  column_names <- .data %>% 
+    dplyr::select(-id_ema) %>% 
+    names()
+  
+  distance <- parDist(.data %>% dplyr::select(-id_ema) %>%  as.matrix(), method = "dtw", 
+    window.type = "sakoechiba", window.size = 2, step.pattern = "symmetricP0")
+  
+  distance <- as.matrix(distance)
+  distance <- distance[c(1:18),c(1:18)]
+  
+  colnames(distance) <- column_names
+  
+  distance <- as_tibble(distance) %>% 
+    mutate(var_names = row_names) %>% 
+    relocate(var_names, everything())
+}
+
+# heatmap_ema <- function(dist){
+#     pheatmap(dist %>% as.matrix(), 
+#          display_numbers = TRUE, border_color = FALSE, 
+#          clustering_method = "ward.D2", treeheight_row = 0, 
+#          treeheight_col = 0, color = colorRampPalette(brewer.pal(n = 7, name = "RdYlBu"))(100), 
+#          number_format = "%.0f", legend = FALSE)
+# }
+# 
+# heatmap_ema(distance)
+
+## Creating function to pivot the DTW results wider to create the features + renaming them using the names we dynamically generated
+
+pivoting_dtw_results_wider <- function(.data){
+.data %>% 
+  as_tibble() %>% 
+  pivot_wider(
+    names_from = var_names,
+    values_from = c(stress_1:time_at_home)
+  )
+}
+
+## Creating duplicate names for DTW features to help remove them from the feature set later (Since they're all 0)
+
+exclude_dtw_same_var_features <- function(.data){
+  
+  ready_for_dup_name <- ema_data_with_dep_outcome_num_resp %>% 
+    dplyr::select(-c(time, beepvar, id_int, number_of_responses)) %>%
+    dplyr::select(where(is.numeric)) %>% 
+    names()
+  
+  col_names_dup <- glue("{ready_for_dup_name}_{ready_for_dup_name}")
+
+ .data <- .data %>%
+  dplyr::select(-col_names_dup)
+}
+
+## Do it once, but then accidentally do the whole thing
+
+# Have to create id only column data frame to bind back with this function at the end
+
+tidyverse_lags_id_only <- train_nested_ema_data %>% 
+  dplyr::select(-ema_data, -dass_dep_deteriorate_or_not)
+
+# Now the function
+
+tic()
+train_data_with_week_1_week_2_stats <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  dplyr::select(where(is.numeric)) %>% 
+  ungroup() %>%
+  as_tibble() %>% 
+  mutate() %>% 
+  group_split(id_ema) %>% 
+  map(creating_dtw_distances) %>%
+  map_dfr(pivoting_dtw_results_wider) %>% 
+  exclude_dtw_same_var_features() %>% 
+  bind_cols(tidyverse_lags_id_only) %>% 
+  relocate(id_ema, contains("dass"), everything()) %>% 
+  dplyr::select(-contains("dass"))
+toc()
+
+```
+
+```{r creating moving average features}
+
+## Used this resource https://www.storybench.org/how-to-calculate-a-rolling-average-in-r/
+
+## Doing it once with stress_1
+
+ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+  complete(time = 1:56) %>% 
+  tidy_imputation() %>% 
+  group_by(id_ema) %>% 
+  mutate(stress_1_3_mov_avg = zoo::rollmean(stress_1, k = 3, fill = NA),
+         stress_1_5_mov_avg = zoo::rollmean(stress_1, k = 5, fill = NA),
+         stress_1_7_mov_avg = zoo::rollmean(stress_1, k = 7, fill = NA)) %>% 
+  filter(str_detect(id_ema, "25299")) %>% 
+  dplyr::select(id_ema, stress_1, stress_1_3_mov_avg, stress_1_5_mov_avg, stress_1_7_mov_avg)
+
+```
+
+```{r get auto-arima features}
+
+## Using this resource https://cran.r-project.org/web/packages/modeltime/vignettes/getting-started-with-modeltime.html
+
+```
+
+```{r running all preprocessing once}
+
+## Now let's try the nesting procedure and doing this cleaning process on each person
+plan(multisession, workers = 7)
+
+tic()
+train_data_with_summ_stats <- train_nested_ema_data %>% 
+  mutate(ema_summ_stats = future_map(ema_data, get_summ_stats_ema_data)) %>% # Will turn into step_mutate
+  mutate(ema_quantile_stats = future_map(ema_data, get_quantiles_ema_data)) %>%  # Will turn into step_mutate
+  mutate(ema_spec_stats = future_map(ema_data, do_spec_analysis)) %>%
+  unnest(c(ema_summ_stats, ema_quantile_stats, ema_spec_stats)) %>% # Will need to create a custom step function
+  distinct(id_ema, .keep_all = T) %>% # Will need to create a custom step function (Filter exists as a step, but group_by doesn't so can't shortcut)
+  dplyr::select(-ema_data) %>% # Will turn into step_rm
+  relocate(id_ema, dass_dep_deteriorate_or_not, everything())
+toc()# Only for viewing here, won't be in final recipe
+# step_BoxCox(all_predictors()) %>% # Built in, will help make predictors more symmetrical
+# step_normalize(all_predictors) %>% # Built in, will normalize all predictors for the autoencoder
+# add_role(all_predictors(), new_role = "non_neural_net_predictors") %>% # Giving role to these predictors to facilitate removal post-autoencoder
+# step_autoencoder(all_predictors()) %>%  # Will need to create a custom step function
+# step_rm(role = "non_neural_net_predictors") # Removing all non autoencoder generated predictors
+
+## Merge lags with other dataset
+
+train_data_preprocessing <- train_data_with_summ_stats %>% 
+  left_join(train_data_with_acf_stats, by = "id_ema") %>%
+  left_join(train_data_with_pacf_stats, by = "id_ema") %>%
+  left_join(train_data_with_auto_stats, by = "id_ema") %>%
+  left_join(train_data_with_dtw_stats, by = "id_ema") %>%
+  # left_join(train_data_with_weekday_weekend_initial_features, by = "id_ema") %>%
+  mutate(across(everything(), ~ifelse(is.nan(.x), NA, .x))) %>% 
+  mutate(across(everything(), ~ifelse(is.infinite(.x), NA, .x)))
+
+## Using prep and bake with recipes to preprocess data (Getting rid of near zero variance features, normalizing all variables (necessary preprocessing for the neural network autoencoder), and using K nearest neighbors to impute missing predictor data
+
+## Maybe add a Box_Cox Step? Should visualize skew/non skew of predictors before and after to check
+
+rec_ema_for_autoencoder <- 
+  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_preprocessing) %>% 
+  update_role(id_ema, new_role = "id") %>% 
+  step_nzv(all_predictors()) %>%
+  step_normalize(all_predictors()) %>%
+  step_knnimpute(all_predictors()) %>% 
+  step_BoxCox(all_predictors())
+
+tic()
+set.seed(33)
+train_data_with_summ_stats_imp_nzv <- rec_ema_for_autoencoder %>% 
+  prep(verbose = TRUE) %>% 
+  bake(new_data = train_data_preprocessing)
+toc()
+
+```
+
+```{r running autoencoder function}
+
+## Having to mix together resources to figure out the autoencoder. This youtube video https://www.youtube.com/watch?v=oDhpIDBQSzw and this free textbook on supervised machine learning for text are what I'm using right now
+
+# Now need to convert this data into a format the autoencoder can understand https://tensorflow.rstudio.com/guide/tfdatasets/introduction/ was hwere I looked initially but now using this https://colorado.rstudio.com/rsc/churn/modeling/tensorflow-w-r.nb.html
+
+## Trying to use this https://stackoverflow.com/questions/44591138/making-neural-network-training-reproducible-using-rstudios-keras-interface
+
+## Maybe we can use this approach from Jason/Chris on low sample size high dimensional data https://pdfs.semanticscholar.org/76f7/55fed7bf1cea8dad35c16bf518eab158c13e.pdf
+
+running_autoencoder_and_rf_rs <- function(.data){
+
+x_train_tbl <- .data %>% 
+  dplyr::select(-c(id_ema,dass_dep_deteriorate_or_not)) %>% 
+  as.matrix()
+# y_train_tbl <- train_data_with_summ_stats_imp_nzv %>% 
+#   dplyr::select(dass_dep_deteriorate_or_not) %>%
+#   as.matrix()
+y_train_vec <- .data %>% 
+  dplyr::select(dass_dep_deteriorate_or_not) %>% pull()
+id_train_vec <-  .data %>% 
+  dplyr::select(id_ema) %>% pull()
+
+# Now we try to make the autoencoder happen based on https://doi.org/10.1016/j.jad.2020.12.086 and https://www.datatechnotes.com/2020/02/how-to-build-simple-autoencoder-with-keras-in-r.html
+
+autoencoder <- keras_model_sequential() %>% 
+  layer_dense(units = ncol(x_train_tbl), activation = "relu", input_shape = ncol(x_train_tbl)) %>% 
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 2000, activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 1000, activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 500, activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 100, activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 25, activation = "relu", name = "features") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 100, activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 500, activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 1000, activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = 2000, activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+  layer_dense(units = ncol(x_train_tbl), activation = "relu") %>%
+  layer_activation_leaky_relu() %>% 
+compile(
+  loss = "mean_squared_error",
+  optimizer = "rmsprop"
+)
+
+summary(autoencoder)
+
+## Would be nice to get AUCs at some point for Keras models, though not neccessary here. Here's a custom AUC function for keras in R that might work https://github.com/rstudio/keras/issues/319
+
+## This creates the full autoencoder model
+
+tic()
+autoencoder_fit <- autoencoder %>% 
+  fit(
+    x = x_train_tbl,
+    y = x_train_tbl,
+    epochs = 100,
+    validation_split = 0.75,
+    callbacks = callback_early_stopping(patience = 25)
+  )
+toc()
+
+## This creates the chopped in half version of the autoencoder model that will let us extract the features
+
+feature_extraction_model <- keras_model(inputs = autoencoder$input,
+                                        outputs = get_layer(autoencoder, "features")$output)
+
+## Now have to save the model and weights https://tensorflow.rstudio.com/tutorials/beginners/basic-ml/tutorial_save_and_restore/
+
+feature_extraction_model %>% save_model_hdf5("my_model.h5")
+
+## And load it into a new model
+
+new_model <- load_model_hdf5("my_model.h5")
+
+## This actually extracts the features from the original data
+train_data_with_autoencoder_features <- predict(feature_extraction_model, x_train_tbl) %>% 
+  as_tibble() %>% 
+  bind_cols(tibble(dass_dep_deteriorate_or_not = y_train_vec, id_ema = id_train_vec)) # Likely don't need this step in the final since I'll just be feeding all the predictors into this autoencoder step and they'll come back as predictors bound to the original data
+
+## Now creating a recipe to predict the outcome of interest with autoencoder features
+
+rec_ema_neural_net <- 
+  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_autoencoder_features) %>% 
+  update_role(id_ema, new_role = "id")
+
+rf_mod <- rand_forest() %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+ema_autoencoder_rf_wf <- workflow() %>% 
+  add_recipe(rec_ema_neural_net) %>% 
+  add_model(rf_mod)
+
+registerDoMC(cores = 7)
+
+set.seed(33)
+folds_ema_pred <- vfold_cv(train_data_with_autoencoder_features, v = 4, repeats = 10, strata = dass_dep_deteriorate_or_not)
+
+## Run the CV models here
+keep_pred <- control_resamples(save_pred = TRUE)
+tic()
+set.seed(33)
+rf_fit_rs <- 
+  ema_autoencoder_rf_wf %>% 
+  fit_resamples(folds_ema_pred, control = keep_pred)
+toc()
+
+## We can get all the metrics here (This isn't working right now, is storing the collect metrics function rather than the output)
+  
+auc_val <- rf_fit_rs %>% 
+  collect_predictions(summarize = TRUE) %>% 
+  roc_auc(truth = dass_dep_deteriorate_or_not, .estimate = .pred_1)
+
+metrics_and_autoencoder_model <- list(new_model, auc_val)
+
+return(metrics_and_autoencoder_model)
+
+}
+
+## Now run it once 
+
+tic()
+test_autoencoder_rf_rs_one_run <- train_data_with_summ_stats_imp_nzv %>% 
+  running_autoencoder_and_rf_rs()
+toc()
+
+```
+
+```{r running autoencoder process 100 times to look at range and averages of AUC}
+
+## This takes ~35 minutes running on 7 cores (Don't want to parallelize map here since we're already using many cores to run the model within the map)
+
+tic()
+samples <- 100
+set.seed(33)
+one_hundred_runs_of_autoencoder_fit <- purrr::map(1:samples,
+                        ~ running_autoencoder_and_rf_rs(train_data_with_summ_stats_imp_nzv))
+toc()
+
+## This map cheat sheet was helpful for finding the flatten and keep arguments (Trying to only look at the data frame elements of the resulting list to look at the AUCs) https://evoldyn.gitlab.io/evomics-2018/ref-sheets/R_purrr.pdf
+
+flattened_list_dfs <- flatten(one_hundred_runs_of_autoencoder_fit) %>% 
+  keep(is.data.frame)
+
+vec_of_auc <- map_dbl(.x = flattened_list_dfs, ~{
+    
+    .x %>% 
+      dplyr::select(.estimate) %>% 
+      deframe()
+    
+  })
+
+psych::describe(vec_of_auc)
+
+## Finding which version of the model gave the maximum AUC
+
+which.max(vec_of_auc)
+
+## Creating a list of only the models/model weights
+
+flattened_list_dfs_models <- flatten(one_hundred_runs_of_autoencoder_fit) %>% 
+  discard(is.data.frame)
+
+## Plucking the model with the max AUC from resampling that could be applied to new data
+
+best_model_weights <- pluck(flattened_list_dfs_models, which.max(vec_of_auc))
+
+best_model_weights %>% save_model_hdf5("best_autoencoder_auc.h5")
+
+```
+
+```{r creating recipe for running a predictive model with pca generated features}
+
+## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
+
+rec_ema_pca <- 
+  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+  update_role(id_ema, new_role = "id") %>% 
+  step_pca(all_predictors(), threshold = 0.95)
+
+## Could also work on making threshold tunable
+
+```
+
+```{r creating recipe for running a predictive model with the raw features}
+
+## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
+
+rec_ema_raw_pred <- 
+  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+  update_role(id_ema, new_role = "id")
+
+```
+
+```{r testing whether the preliminary recipe works within a workflow}
+
+# Create a random forest model
+
+rf_mod <- rand_forest() %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+# Create a list of preprocessing recipes
+
+base_model_rec_list <- list(rec_ema_pca, rec_ema_raw_pred)
+
+# Combining each recipe into a tidymodels workflows using a map function
+
+base_model_wfs <- map(base_model_rec_list, ~{
+  
+  ema_autoencoder_rf_wf <- workflow() %>% 
+  add_recipe(.x) %>% 
+  add_model(rf_mod)
+}
+)
+
+# Create as list of dataframes we'll be using to fit these models
+
+base_model_data_list <- list(train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv)
+
+# Fitting each model once to make sure they run, and they do
+
+base_model_one_time_fit <- map2(base_model_wfs, base_model_data_list, ~{
+  
+tic()
+ema_rf_wf_fit <- fit(.x, data = .y)
+toc()
+ema_rf_wf_fit
+  
+})
+
+```
+
+```{r}
+
+## Fit resamples is having a hard time running these models (no errors but just continuing trying to compute for long periods of time without actually completing the computation). Might have something to do with this issue: https://github.com/tidymodels/tune/issues/206
+
+base_model_fit_all_rs <- map2(base_model_wfs, base_model_data_list, ~{
+  
+registerDoMC(cores = 7)
+
+set.seed(33)
+folds_ema_pred <- vfold_cv(.y, v = 4, repeats = 10, strata = dass_dep_deteriorate_or_not)
+
+## Run the CV models here
+keep_pred <- control_resamples(save_pred = TRUE)
+tic()
+set.seed(33)
+rf_fit_rs <- 
+  .x %>% 
+  fit_resamples(folds_ema_pred, control = keep_pred)
+toc()
+rf_fit_rs
+
+} 
+)
+
+## Saving the predictions/actual differences here
+
+base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
+  
+  auc <- .x %>% 
+  collect_predictions(summarize = TRUE) %>% 
+  roc_auc(truth = dass_dep_deteriorate_or_not, .estimate = .pred_1)
+
+}) %>% 
+  print()
+
+```
+
+```{r need to do all the preprocessing for the test set starting with summary statistics}
+
+plan(multisession, workers = 7)
+
+## Probably need to do some more presprocessing as of now. For example, does the test set already have id_ema or just id?
+
+tic()
+test_data_with_summ_stats <- test_nested_ema_data %>% 
+  mutate(ema_summ_stats = future_map(ema_data, get_summ_stats_ema_data)) %>% # Will turn into step_mutate
+  mutate(ema_quantile_stats = future_map(ema_data, get_quantiles_ema_data)) %>%  # Will turn into step_mutate
+  mutate(ema_spec_stats = future_map(ema_data, do_spec_analysis)) %>%
+  unnest(c(ema_summ_stats, ema_quantile_stats, ema_spec_stats)) %>% # Will need to create a custom step function
+  distinct(id_ema, .keep_all = T) %>% # Will need to create a custom step function (Filter exists as a step, but group_by doesn't so can't shortcut)
+  dplyr::select(-ema_data) %>% # Will turn into step_rm
+  relocate(id_ema, dass_dep_deteriorate_or_not, everything())
+toc()# Only for viewing here, won't be in final recipe
+# step_BoxCox(all_predictors()) %>% # Built in, will help make predictors more symmetrical
+# step_normalize(all_predictors) %>% # Built in, will normalize all predictors for the autoencoder
+# add_role(all_predictors(), new_role = "non_neural_net_predictors") %>% # Giving role to these predictors to facilitate removal post-autoencoder
+# step_autoencoder(all_predictors()) %>%  # Will need to create a custom step function
+# step_rm(role = "non_neural_net_predictors") # Removing all non autoencoder generated predictors
+
+```
+
+```{r creating acf lags for test set}
+
+## Creating test set ACF Features
+
+test_data_with_acf_stats <- map_dfc(lag_stats_names, ~{
+  
+tidyverse_lags_test_reduced_acf <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% test_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  ACF(.data[[.x]], lag_max = 10) %>% 
+  group_split(id_ema) %>%  # This creates a list of dataframes by id, since pivot_wider won't work given it would create redundant column names
+  map_dfr(pivoting_acf_results_wider) %>% 
+  create_acf_names(var_name_input = .x)
+  
+}) %>% 
+  rename(temp_id = id_ema...1) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = temp_id)
+```
+
+```{r creating pacf lags for test set}
+
+test_data_with_pacf_stats <- map_dfc(lag_stats_names, ~{
+  
+tidyverse_lags_test_reduced_pacf <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% test_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  PACF(.data[[.x]], lag_max = 10) %>% 
+  group_split(id_ema) %>%  # This creates a list of dataframes by id, since pivot_wider won't work given it would create redundant column names
+  map_dfr(pivoting_pacf_results_wider) %>% 
+  create_pacf_names(var_name_input = .x)
+  
+}) %>% 
+  rename(temp_id = id_ema...1) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = temp_id)
+
+```
+
+```{r creating feasts package automatic features for test set}
+
+test_data_with_auto_stats <- map_dfc(lag_stats_names, ~{
+  
+tidyverse_lags_test_reduced_auto <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% test_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  features(.data[[.x]], feature_set(pkgs = "feasts")) %>% 
+  dplyr::select(-acf10, -acf1,-pacf5) %>% 
+  create_auto_feature_names(var_name_input = .x)
+  
+}) %>% 
+  rename(temp_id = id_ema...1) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = temp_id)
+
+```
+
+```{r creating dynamic time warp features for test set}
+
+# Have to create id only column data frame to bind back with this function at the end
+
+tidyverse_test_lags_id_only <- test_nested_ema_data %>% 
+  dplyr::select(-ema_data, -dass_dep_deteriorate_or_not)
+
+tic()
+test_data_with_dtw_stats <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% test_nested_ema_data$id_ema) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>% 
+  as_tsibble(key = id_ema, index = time) %>% 
+  group_by(id_ema) %>% 
+  tidy_imputation() %>% 
+  dplyr::select(where(is.numeric)) %>% 
+  ungroup() %>%
+  as_tibble() %>% 
+  dplyr::select(-time) %>% 
+  group_split(id_ema) %>% 
+  map(creating_dtw_distances) %>%
+  map_dfr(pivoting_dtw_results_wider) %>% 
+  exclude_dtw_same_var_features() %>% 
+  bind_cols(tidyverse_test_lags_id_only) %>% 
+  relocate(id_ema, contains("dass"), everything()) %>% 
+  dplyr::select(-contains("dass"))
+toc()
+
+```
+
+```{r creating weekday weekend features for the test set}
+
+
+# Get the data
+
+test_data_with_date_df <- ema_data_with_dep_outcome_num_resp %>%
+  filter(id_ema %in% test_nested_ema_data$id_ema) %>% 
+  complete(time = 1:56)
+
+# Add time series signature
+recipe_date_timeseries <- recipe(dass_dep_deteriorate_or_not ~ ., data = test_data_with_date_df) %>%
+    step_timeseries_signature(day) %>% 
+    step_nzv(all_predictors())
+
+## Now breaking out summary statistics by weekday vs. weekend
+
+set.seed(33)
+test_data_with_date_structure <- recipe_date_timeseries %>% 
+  prep(verbose = TRUE) %>% 
+  bake(new_data = test_data_with_date_df) %>% 
+  dplyr::select(-contains("dass")) %>% 
+  mutate(weekend = case_when(
+    
+    day_wday.lbl == "Monday" | day_wday.lbl == "Tuesday" |day_wday.lbl == "Wednesday" | day_wday.lbl == "Thursday" | day_wday.lbl == "Friday" ~ 0,
+    day_wday.lbl == "Saturday" | day_wday.lbl == "Sunday" ~ 1
+    
+  )) %>% 
+  group_split(weekend) %>% 
+  map(get_summ_stats_ema_data_long)
+
+date_df_names <- test_data_with_date_structure[[1]] %>% 
+  names() 
+
+col_names_date_df_weekday <- glue("{date_df_names}_weekday")
+
+col_names_date_df_weekend <- glue("{date_df_names}_weekend")
+
+
+names(test_data_with_date_structure[[1]]) <- col_names_date_df_weekday
+names(test_data_with_date_structure[[2]]) <- col_names_date_df_weekend
+
+test_data_with_weekday_weekend_initial_features <- map_dfc(test_data_with_date_structure, ~.x) %>% 
+  rename(id_temp = id_ema_weekday) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = id_temp)
+
+```
+
+```{r merging all preprocessed data for test set and removing near zero variance columns plus imputing missing data}
+
+## Merge lags with other datasets
+
+test_data_preprocessing <- test_data_with_summ_stats %>% 
+  left_join(test_data_with_acf_stats, by = "id_ema") %>%
+  left_join(test_data_with_pacf_stats, by = "id_ema") %>%
+  left_join(test_data_with_auto_stats, by = "id_ema") %>%
+  left_join(test_data_with_dtw_stats, by = "id_ema") %>%
+  left_join(test_data_with_weekday_weekend_initial_features, by = "id_ema") %>%
+  mutate(across(everything(), ~ifelse(is.nan(.x), NA, .x))) %>% 
+  mutate(across(everything(), ~ifelse(is.infinite(.x), NA, .x)))
+
+## We need to retain the same columns as in the training data in the test data to run the same autoencoder. I used this website as a resource for selecting variables based on the variables in another dataframe https://tidyselect.r-lib.org/reference/all_of.html
+
+vars_in_train_data <- names(train_data_with_summ_stats_imp_nzv)
+
+test_data_preprocessing <- test_data_preprocessing %>% 
+  dplyr::select(all_of(vars_in_train_data))
+
+## Using prep and bake with recipes to preprocess data (Getting rid of near zero variance features, normalizing all variables (necessary preprocessing for the neural network autoencoder), and using K nearest neighbors to impute missing predictor data
+
+rec_ema_test_for_autoencoder <- 
+  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = test_data_preprocessing) %>% 
+  update_role(id_ema, new_role = "id") %>% 
+  step_nzv(all_predictors()) %>% 
+  step_normalize(all_predictors()) %>%
+  step_knnimpute(all_predictors())
+
+tic()
+set.seed(33)
+test_data_with_summ_stats_imp_nzv <- rec_ema_test_for_autoencoder %>% 
+  prep(verbose = TRUE) %>% 
+  bake(new_data = test_data_preprocessing)
+toc()
+
+## Trying to diagnose which columns are removed if we do near zero variance step
+
+# compare <- janitor::compare_df_cols(train_data_with_summ_stats_imp_nzv, test_data_with_summ_stats_imp_nzv) %>% 
+#   slice(1000:1872)
+
+test_data_preprocessing_for_inclusion <- test_data_preprocessing %>% 
+  dplyr::select(anger_1_median_weekday, anger_1_mode, anx_1_pp_pvalue, dep_2_mode, dep_2_mode_weekday, dep_2_pp_pvalue,
+                stress_2_pp_pvalue, time_occupied_covid_pp_pvalue, time_soc_contact_pp_pvalue, time_think_health_covid_pp_pvalue) %>% 
+  mutate(dep_2_pp_pvalue = ifelse(is.na(dep_2_pp_pvalue), 0.0100000, dep_2_pp_pvalue),
+         stress_2_pp_pvalue = ifelse(is.na(stress_2_pp_pvalue), 0.0100000, stress_2_pp_pvalue)
+         )
+
+test_data_with_summ_stats_imp_nzv_complete <- test_data_with_summ_stats_imp_nzv %>% 
+  bind_cols(test_data_preprocessing_for_inclusion) %>% 
+  rename(id_temp = id_ema...1) %>% 
+  dplyr::select(-contains("id_ema")) %>% 
+  rename(id_ema = id_temp) %>% 
+  dplyr::select(-dass_dep_deteriorate_or_not...1864) %>% 
+  rename(dass_dep_deteriorate_or_not = dass_dep_deteriorate_or_not...1862) %>% 
+  relocate(all_of(vars_in_train_data)) ## Puts all the columns in the same order as the training data, which is important for the autoencoder
+  
+
+```
+
+```{r creating features according to autoencoder model with max AUC in test data}
+
+## Setting up code necessary to fit saved model to training data
+
+x_train_tbl <- train_data_with_summ_stats_imp_nzv %>% 
+  dplyr::select(-c(id_ema,dass_dep_deteriorate_or_not)) %>% 
+  as.matrix()
+y_train_tbl <- train_data_with_summ_stats_imp_nzv %>%
+  dplyr::select(dass_dep_deteriorate_or_not) %>%
+  as.matrix()
+id_train_vec <-  train_data_with_summ_stats_imp_nzv %>% 
+  dplyr::select(id_ema) %>% pull()
+
+## Creating features using the saved model
+
+best_model_weights_loaded <- load_model_hdf5("best_autoencoder_auc.h5") %>% 
+  compile(
+  loss = "mean_squared_error",
+  optimizer = "rmsprop"
+)
+
+train_data_with_autoencoder_features_best <- predict(best_model_weights_loaded, x_train_tbl) %>% 
+  as_tibble() %>% 
+  bind_cols(tibble(dass_dep_deteriorate_or_not = y_train_tbl, id_ema = id_train_vec)) %>% 
+  as_tibble() %>% 
+  mutate(dass_dep_deteriorate_or_not = as.factor(dass_dep_deteriorate_or_not))
+
+## Setting up code necessary to fit saved model to test data
+
+x_test_tbl <- test_data_with_summ_stats_imp_nzv_complete %>% 
+  dplyr::select(-c(id_ema,dass_dep_deteriorate_or_not)) %>% 
+  as.matrix()
+# y_train_tbl <- train_data_with_summ_stats_imp_nzv %>% 
+#   dplyr::select(dass_dep_deteriorate_or_not) %>%
+#   as.matrix()
+y_test_vec <- test_data_with_summ_stats_imp_nzv_complete %>% 
+  dplyr::select(dass_dep_deteriorate_or_not) %>% pull()
+id_test_vec <-  test_data_with_summ_stats_imp_nzv_complete %>% 
+  dplyr::select(id_ema) %>% pull()
+
+## Creating features using the saved model
+
+test_data_with_autoencoder_features_best <- predict(best_model_weights_loaded, x_test_tbl) %>% 
+  as_tibble() %>% 
+  bind_cols(tibble(dass_dep_deteriorate_or_not = y_test_vec, id_ema = id_test_vec)) %>% 
+  as_tibble() %>% 
+  mutate(dass_dep_deteriorate_or_not = as.factor(dass_dep_deteriorate_or_not))
+
+```
+
+```{r setting up random forest model for best autoencoder model with hyperparameter tuning}
+
+##### Random Forest #####
+
+## Now have to create the random forest engine 
+
+rf_mod_best_auto <- 
+  rand_forest(trees = 1000) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+## Set up new recipe
+
+rec_ema_neural_net_best_auto <- 
+  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_autoencoder_features_best) %>% 
+  update_role(id_ema, new_role = "id")
+
+## And workflow (combining fitting the model with the preprocessing recipe)
+
+ema_autoencoder_rf_wf_best_auto <- 
+  workflow() %>% 
+  add_recipe(rec_ema_neural_net_best_auto) %>% 
+  add_model(rf_mod_best_auto)
+
+## Now fit the model to the test data 
+
+ema_rf_wf_fit <- fit(ema_autoencoder_rf_wf_best_auto, data = train_data_with_autoencoder_features_best)
+
+## Evaluating performance in training set
+
+results_train <- ema_rf_wf_fit %>%
+  predict(new_data = train_data_with_autoencoder_features_best, type = "prob") %>% 
+  mutate(truth = as.factor(train_data_with_autoencoder_features_best$dass_dep_deteriorate_or_not)) 
+
+results_train %>% 
+  yardstick::roc_curve(truth, .pred_1, event_level = "second") %>% 
+  autoplot()
+
+results_train %>% 
+  yardstick::roc_auc(truth, .pred_1, event_level = "second")
+
+## And in the testing set
+
+results_test <- ema_rf_wf_fit %>%
+  predict(new_data = test_data_with_autoencoder_features_best, type = "prob") %>% 
+  mutate(truth = as.factor(test_data_with_autoencoder_features_best$dass_dep_deteriorate_or_not)) 
+
+results_train %>% 
+  yardstick::roc_curve(truth, .pred_1, event_level = "second") %>% 
+  autoplot()
+
+results_train %>% 
+  yardstick::roc_auc(truth, .pred_1, event_level = "second")
+
+```
+
+```{r doing hyperparamter training for autoencoder model with max AUC and raw features model}
+
+## Create tuning parameter set from this workflow
+
+rf_set_autoencoder <- parameters(ema_autoencoder_rf_wf_best_auto)
+
+## Then update the tuning set to give some bounds to mtry
+
+rf_set_autoencoder <- 
+  rf_set_autoencoder %>% 
+  update(mtry = mtry(c(2L, 24L)))
+
+## Creating folds
+set.seed(33)
+folds_ema_pred_best_auto <- vfold_cv(train_data_with_autoencoder_features_best, v = 4, repeats = 10, strata = dass_dep_deteriorate_or_not)
+
+registerDoMC(cores = 7) 
+
+## Running the workflow with the tuning
+
+tic()
+set.seed(33)
+search_res_rf_autoencoder_best_auto <-
+  ema_autoencoder_rf_wf_best_auto %>% 
+  tune_bayes(
+    resamples = folds_ema_pred_best_auto,
+    # To use non-default parameter ranges
+    param_info = rf_set_autoencoder,
+    # Generate five at semi-random to start
+    initial = 5,
+    iter = 25,
+    # How to measure performance?
+    metrics = metric_set(roc_auc),
+    control = control_bayes(no_improve = 5, verbose = TRUE)
+  )
+toc()
+
+## Pull the best combination of hypetparameters
+
+best_hyp <- search_res_rf_autoencoder_best_auto %>%
+  select_best("roc_auc")
+
+## Establishing final workflow following tuning
+
+final_wf_best_auto <- 
+  ema_autoencoder_rf_wf_best_auto %>% 
+  finalize_workflow(best_hyp)
+
+## Now fit the finalized workflow on resamples
+
+   
+  ## Run the CV models here
+keep_pred <- control_resamples(save_pred = TRUE)
+tic()
+set.seed(33)
+fit_rs_final_best_auto <- 
+  final_wf_best_auto %>% 
+  fit_resamples(folds_ema_pred_best_auto, control = keep_pred)
+toc()
+
+## And get the metrics here
+
+auc <- fit_rs_final_best_auto %>% 
+  collect_predictions(summarize = TRUE) %>% 
+  roc_auc(truth = dass_dep_deteriorate_or_not, .estimate = .pred_1) %>% 
+  print()
+
+```
+
+```{r looking at model interpretability}
+
+## This is a brief blog post on SHAP values in R, which look like some variation of permutation testing https://blog.datascienceheroes.com/how-to-interpret-shap-values-in-r/
+
+## Nick Jacboson's group uses them in this paper as well https://www.nature.com/articles/s41598-021-81368-4
+
+```
+
+## Everything Below Here I Haven't Actually Used Yet/Won't Use Without Implementing Nested Cross Validation
+
+```{r setting up random forest model for many models}
+
+##### Random Forest #####
+
+## Now have to create the random forest engine 
+
+rf_mod <- 
+  rand_forest(trees = 1000, mtry = tune(), min_n = tune()) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+## And workflow (combining fitting the model with the preprocessing recipe)
+
+ema_autoencoder_rf_wf <- 
+  workflow() %>% 
+  add_recipe(rec_ema_neural_net) %>% 
+  add_model(rf_mod)
+
+## Create tuning parameter set from this workflow
+
+rf_set <- parameters(ema_autoencoder_rf_wf)
+
+## Then update the tuning set to give some bounds to mtry
+
+rf_set <- 
+  rf_set %>% 
+  update(mtry = mtry(c(2L, 24L)))
+```
+
+```{r setting up elastic net model for many models}
+##### Elastic Net #####
+
+el_net_mod <- 
+  logistic_reg(penalty = tune(), mixture = tune()) %>% 
+  set_engine("glmnet")
+
+## And workflow (combining fitting the model with the preprocessing recipe)
+
+ema_autoencoder_el_net_wf <- 
+  workflow() %>% 
+  add_recipe(rec_ema_neural_net) %>% 
+  add_model(el_net_mod)
+
+## Create tuning parameter set from this workflow
+
+el_net_set <- parameters(ema_autoencoder_el_net_wf)
+
+```
+
+```{r setting up bagged mars model for many models}
+
+## Now have to create the random forest engine 
+
+bagged_mars_mod <- 
+  bag_mars(num_terms = tune(), prod_degree = tune(), prune_method = tune()) %>% 
+  set_engine("earth") %>% 
+  set_mode("classification")
+
+## And workflow (combining fitting the model with the preprocessing recipe)
+
+ema_autoencoder_bag_mars_wf <- 
+  workflow() %>% 
+  add_recipe(rec_ema_neural_net) %>% 
+  add_model(bagged_mars_mod)
+
+## Create tuning parameter set from this workflow
+
+bagged_mars_set <- parameters(ema_autoencoder_bag_mars_wf)
+
+```
+
+```{r setting up bagged decision tree model for many models}
+
+## Now have to create the random forest engine 
+
+bagged_tree_mod <- 
+  bag_tree(cost_complexity = tune(), tree_depth = tune(), min_n = tune()) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+## And workflow (combining fitting the model with the preprocessing recipe)
+
+ema_autoencoder_bag_tree_wf <- 
+  workflow() %>% 
+  add_recipe(rec_ema_neural_net) %>% 
+  add_model(bagged_tree_mod)
+
+## Create tuning parameter set from this workflow
+
+bagged_tree_set <- parameters(ema_autoencoder_bag_tree_wf)
+
+bagged_tree_set <- 
+  bagged_tree_set %>% 
+  update(min_n = mtry(c(2L, 19L)))
+
+```
+
+```{r setting up c5 rule based model for many models}
+
+## Now have to create the random forest engine 
+
+c5_rules_mod <- 
+  C5_rules(trees = tune())
+
+## And workflow (combining fitting the model with the preprocessing recipe)
+
+ema_autoencoder_c5_rules_wf <- 
+  workflow() %>% 
+  add_recipe(rec_ema_neural_net) %>% 
+  add_model(c5_rules_mod)
+
+## Create tuning parameter set from this workflow
+
+c5_rules_set <- parameters(ema_autoencoder_c5_rules_wf)
+
+```
+
+```{r function for doing hyperparameter tuning across all base models}
+
+workflow_list <- list(ema_autoencoder_rf_wf, ema_autoencoder_el_net_wf, ema_autoencoder_bag_mars_wf)
+parameter_list <- list(rf_set, el_net_set, bagged_mars_set)
+
+finalized_workflows <- map2(.x = workflow_list, .y = parameter_list, ~{
+
+  registerDoMC(cores = 7) 
+  ## Running the workflow with the tuning
+tic()
+set.seed(33)
+search_res <-
+  .x %>% 
+  tune_bayes(
+    resamples = folds_ema_pred,
+    # To use non-default parameter ranges
+    param_info = .y,
+    # Generate five at semi-random to start
+    initial = 5,
+    iter = 25,
+    # How to measure performance?
+    metrics = metric_set(roc_auc),
+    control = control_bayes(no_improve = 5, verbose = TRUE)
+  )
+toc()
+
+## Pull the best combination of hypetparameters
+
+best_hyp <- search_res %>%
+  select_best("roc_auc")
+
+## Establishing final workflow following tuning
+
+final_wf <- 
+  .x %>% 
+  finalize_workflow(best_hyp)
+
+return(final_wf)
+  
+}) 
+
+```
+
+```{r function for fitting many models across optimal hyperparameters}
+
+## Now want to take the finalized workflows and get the final predictions
+
+finalized_base_models_with_predictions <- map(finalized_workflows, ~{
+ 
+  registerDoMC(cores = 7) 
+   
+  ## Run the CV models here
+keep_pred <- control_resamples(save_pred = TRUE)
+tic()
+set.seed(33)
+fit_rs_final <- 
+  .x %>% 
+  fit_resamples(folds_ema_pred, control = keep_pred)
+toc()
+
+return(fit_rs_final)
+  
+})
+
+```
+
+```{r getting metrics across all the base models}
+
+## Getting metrics from the base models
+
+base_model_metrics <- map_df(finalized_base_models_with_predictions, ~{
+  
+  metrics_df <- collect_metrics(.x, summarize = TRUE)
+  return(metrics_df)
+  
+}) %>% 
+  print()
+
+```
+
+```{r extract base model predictions to create a new feature space}
+
+## Now have to extract predictions from each model and create a new dataframe where the predictions, outcomes, and ID variables are all together
+
+## First, collecting predictions from both dataframes
+
+base_model_predictions <- map(finalized_base_models_with_predictions, ~{
+  
+  pred_df <- collect_predictions(.x, summarize = TRUE) %>% 
+    dplyr::select(-.config)
+  return(pred_df)
+  
+}) %>% 
+  reduce(left_join, by = ".row") %>% 
+  dplyr::select(row = .row, dass_dep_deteriorate_or_not = dass_dep_deteriorate_or_not.x, contains(".pred"))
+  
+
+```
+
+```{r}
+
+## Create a recipe for the prediction-based feature space
+
+preds_as_feat_rec <- 
+  recipe(dass_dep_deteriorate_or_not ~ ., data = base_model_predictions) %>% 
+  update_role(row, new_role = "id_variable") %>% 
+  step_dummy(all_nominal(), -all_outcomes())
+
+summary(preds_as_feat_rec)
+
+```
+
+```{r}
+
+## Then need to run a boosted tree model with hyperparameter tuning based on this new feature space to create final predictions
+
+## And workflow (combining fitting the model with the preprocessing recipe)
+
+boost_tree_mod <- boost_tree() %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification") %>% 
+  translate()
+
+bt_wf <- 
+  workflow() %>%
+  add_model(boost_tree_mod) %>%
+  add_recipe(preds_as_feat_rec)
+
+## We need to train using cross-validation, so we set up 5-fold CV here with 5 repeats
+
+set.seed(33)
+folds_pred_as_feat <- vfold_cv(base_model_predictions, v = 4, repeats = 4, strata = dass_dep_deteriorate_or_not)
+
+## Run the final model with resamples
+
+## Run the CV models here
+keep_pred <- control_resamples(save_pred = TRUE)
+tic()
+set.seed(33)
+bt_fit_rs_final <- 
+  bt_wf %>% 
+  fit_resamples(folds_pred_as_feat, control = keep_pred)
+toc()
+
+## And get the metrics here
+
+collect_metrics(bt_fit_rs_final, summarize = TRUE)
+
+## Saving the predictions/actual differences here
+
+bt_adv_res <- collect_predictions(bt_fit_rs_final, summarize = TRUE)
+
+bt_fit_rs_final$.notes
+
+```
+
+## Old Not In Use Code
+
+```{r}
+
+test_ema_data_dtvem <- ema_data_with_dep_outcome_num_resp %>% 
+  slice(1:56)
+
+get_dtvem_lags = function(x){
+  
+  ## Creating the function we need to run across dataframe columns based on http://www.nicholasjacobson.com/post/digital_biomarkers_mood_disorders/
+
+  ## Selecting all the columns we need and attempting to run the map function
+  dtvem_lags_df <- x %>% 
+  dplyr::select(where(is.numeric), -c(time:beepvar, id_int, number_of_responses)) %>% 
+  map(~{
+  
+  num_lags <- length(.x) - 1
+      
+  x2=data.frame(outcome=NA,lag=NA,pred=NA)
+  for(i in 1:num_lags){
+    outcome=.x[1:(length(.x)-i)] 
+    pred=.x[-1:-i]
+    tempx=data.frame(outcome=outcome,lag=i,pred=pred)
+    x2=rbind(x2,tempx)
+    return(x2)
+  }
+  }
+  )}
+
+dtvem_stats <- map(test_dtvem_output_lags, ~{
+  
+  out=bam(outcome~s(lag,by=pred, k = 2),data=.x)
+  pdat=data.frame(pred=1,lag=num_lags)
+  stage1est=predict.bam(out,pdat,type="terms")
+  
+  tibble_dtvem_stage_1 <- as_tibble(stage1est) %>% 
+  dplyr::mutate(lag = (n()-row_number()) + 1) %>% 
+  arrange(lag) %>% 
+  pivot_wider(
+    names_from = lag,
+    names_prefix = "lag_",
+    names_sep = "_",
+    values_from = `s(lag):pred`
+  ) %>% 
+  unnest()
+  return(tibble_dtvem_stage_1)
+})
+
+safely_get_dtvem_lags <- safely(get_dtvem_lags)
+
+test_dtvem_output_lags <- get_dtvem_lags(test_ema_data_dtvem)
+
+safely_do_dtvem_stage1 <- safely(do_dtvem_stage1)
+
+test_dtvem_output <- safely_do_dtvem_stage1(test_dtvem_output_lags)
+
+train_data_with_dtvem_stats <- train_nested_ema_data %>% 
+  mutate(ema_dtvem_stats = map(data, do_dtvem_stage1)) %>% 
+  unnest(ema_spec_stats) %>%
+  distinct(id_ema, .keep_all = T) %>% 
+  print()
+
+dtvem_stats_df <- test_ema_data_dtvem %>% 
+  dplyr::select(where(is.numeric),-c(time:beepvar, id_int, number_of_responses))
+```
+
+```{r doing it once before writing a function to get all autocorrelations for all lags}
+
+
+## Doing it once outside pipes
+
+k <- 1:55
+name <- str(ema_data_with_dep_outcome_num_resp$stress_1)
+col_names <- paste0("stress_1_acf_lag_", k)
+
+tidyverse_lags_test_reduced <- ema_data_with_dep_outcome_num_resp %>%
+  slice(1:112)
+
+tidyverse_lags_test <- tidyverse_lags_test_reduced %>% 
+  dplyr::select(-c(beepvar, id_int, number_of_responses)) %>% 
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  )) %>% 
+  dplyr::select(stress_1, day) %>% 
+    tq_mutate(
+        mutate_fun = lag.xts,
+        k          = 1:55,
+        col_rename = col_names
+    ) %>% 
+  pivot_longer(
+    cols = contains("lag"),
+    names_to = "lag", 
+    values_to = "lag_value"
+  ) %>%
+    group_by(lag) %>%
+    summarize(
+        cor = cor(x = stress_1, y = lag_value, use = "pairwise.complete.obs")
+        ) %>% 
+  pivot_wider(
+    names_from = lag,
+    values_from = cor
+  ) %>% 
+  print()
+
+## Now doing it once in pipes
+
+tidy_get_lag_acf <- function(.data, var_for_acf) {
+
+var_name <- .data %>% 
+  dplyr::select({{var_for_acf}}) %>% 
+    names()
+    
+k_func <- 1:10
+col_names_tidy <- glue("{var_name}_lag_{k_func}")
+
+tidyverse_lags_test <- .data %>%
+  dplyr::select({{var_for_acf}}, day, id_ema) %>%
+  group_by(id_ema) %>% 
+    tq_mutate(
+        mutate_fun = lag.xts,
+        k          = 1:10,
+        col_rename = col_names_tidy
+    ) %>% 
+  pivot_longer(
+    cols = contains("lag"),
+    names_to = "lag", 
+    values_to = "lag_value"
+  ) %>%
+    group_by(lag, id_ema) %>%
+    dplyr::summarise(
+        cor_acf = cor(x = {{var_for_acf}}, y = lag_value, use = "pairwise.complete.obs")
+        ) %>% 
+  pivot_wider(
+    names_from = lag,
+    values_from = cor_acf
+  ) %>% 
+  dplyr::select(-contains("id_ema"))
+  
+}
+
+tidyverse_lags_test_reduced_test_one_var <- tidyverse_lags_test_reduced %>% 
+  tidy_get_lag_acf(stress_1) %>% 
+  print()
+
+## Can now map through all of the columns for one id
+
+ mapping_over_all_cols_lag_acf <- function(.x){
+    
+  tidyverse_lags_reduced_pipe <- lag_stats_temp_df %>%
+  tidy_get_lag_acf(var_for_acf = .data[[.x]])
+    
+  }
+
+## Creating function that works with nested data
+
+ do_acf_analysis <- function(x){
+  
+  lag_stats_temp_df <- x %>% 
+  dplyr::select(-c(beepvar, id_int, number_of_responses)) %>% 
+  group_by(id_ema) %>% 
+  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+  ungroup() %>%
+  mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  ))
+  
+  lag_stats_names <- x %>% 
+    dplyr::select(-c(time:beepvar, id_int, number_of_responses)) %>% 
+    dplyr::select(where(is.numeric)) %>% 
+    names()
+
+ test_acf_all_cols_one_id <- future_map_dfc(lag_stats_names, mapping_over_all_cols_lag_acf)
+  
+ }
+ 
+future::plan(multisession, workers = 7)
+
+tic()
+train_data_with_lag_stats <- train_nested_ema_data %>%
+  mutate(ema_lag_stats = map(ema_data, do_acf_analysis)) %>%
+  unnest(ema_lag_stats) %>%
+  distinct(id_ema, .keep_all = T) %>%
+  print()
+toc()
+
+```
+
+```{r writing a function to get all autocorrelations for all lags using the function on nested ema data}
+
+## Figured out how to do a nested map here https://stackoverflow.com/questions/46392282/map-function-to-second-level-of-nested-list-using-purrr
+
+## Also if we want to reference the outer part of the loop (in this case making sure we use the right ema_data matched to the correct id) we need to follow this post https://stackoverflow.com/questions/48847613/purrr-map-equivalent-of-nested-for-loop
+
+## Figured out this would actually be a 3 level map, and that feels completely bonkers so revised the function to work on the long data only including the training ids
+
+# plan(multisession, workers = 7)
+# 
+# tic()
+# train_data_with_lag_stats <- train_nested_ema_data %>%
+#   mutate(ema_lag_stats = map(ema_data, ~map_dfc(vars_for_acf_names, ~mapping_over_all_cols_lag_acf(vars_for_func, ema_data)), ema_data = .x)) %>%
+#   unnest(ema_lag_stats) %>%
+#   distinct(id_ema, .keep_all = T) %>%
+#   print()
+# toc()
+# 
+# train_nested_ema_data$ema_data
+# 
+# plan(multisession, workers = 7)
+# 
+# train_data_with_lag_stats <- ema_data_with_dep_outcome_num_resp %>% 
+#   filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
+#   mutate(ema_lag_stats = NULL) %>% 
+#   nest(ema_lag_stats) %>% 
+#   mutate(ema_lag_stats = map(ema_data, ~map_dfc(vars_for_acf_names, ~mapping_over_all_cols_lag_acf(.x, .y)), .y = .x))
+
+```
