@@ -786,6 +786,16 @@ base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
 }) %>% 
   print()
 
+base_model_plots_all_rs <- map(base_model_fit_all_rs, ~{
+  
+  auc <- .x %>% 
+  collect_predictions(summarize = TRUE) %>% 
+  roc_curve(truth = dass_dep_deteriorate_or_not, .estimate = .pred_1) %>% 
+  autoplot()
+
+}) %>% 
+  print()
+
 ```
 
 ```{r need to do all the preprocessing for the test set starting with summary statistics}
