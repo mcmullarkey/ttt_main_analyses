@@ -188,93 +188,74 @@ pre_post_data <- read_csv("fried_mh_covid_data_pre_post.csv") %>%
 
 ema_data <- read_csv("fried_mh_covid_data_ema.csv") %>% 
   clean_names() %>% 
-  dplyr::rename(id_ema = id, stress_1 = q1, stress_2 = q2, anx_1 = q3, anx_2 = q4, dep_1 = q5, dep_2 = q6,
-         fatigue_1 = q7, hunger_1 = q8, lonely_1 = q9, anger_1 = q10, time_soc_contact = q11, time_soc_media_use = q12, time_listen_to_music = q13, 
-         time_procrast = q14, time_outdoors = q15, time_occupied_covid = q16, time_think_health_covid = q17, time_at_home = q18) %>% 
-  dplyr::mutate(across(
-    where(is.numeric),
-    as.integer
-  ))
-
+  rename(
+    stress_1 = q1, 
+    stress_2 = q2, 
+    anx_1 = q3, 
+    anx_2 = q4, 
+    dep_1 = q5, 
+    dep_2 = q6,
+    fatigue_1 = q7, 
+    hunger_1 = q8, 
+    lonely_1 = q9, 
+    anger_1 = q10, 
+    time_soc_contact = q11,
+    time_soc_media_use = q12, 
+    time_listen_to_music = q13, 
+    time_procrast = q14, 
+    time_outdoors = q15, 
+    time_occupied_covid = q16, 
+    time_think_health_covid = q17, 
+    time_at_home = q18
+  ) %>% mutate_if(is.numeric, as.integer)
 ```
 
 ```{r creating ema data with outcome data}
-
-## Creating outcomes for whether depression and/or anxiety clinically significantly deteriorated over the course of the study
-
-reduced_pre_post_data_with_outcomes <- pre_post_data %>% 
-  dplyr::select(id, pre1:pre21, post1:post21) %>% 
-  mutate(b_dass_depress_mean = rowMeans(dplyr::select(pre_post_data, pre3, pre5, pre10, pre13, pre16, pre17, pre21), na.rm = TRUE),
-         f_dass_depress_mean = rowMeans(dplyr::select(pre_post_data, post3, post5, post10, post13, post16, post17, post21), na.rm = TRUE),
-         b_dass_anx_mean = rowMeans(dplyr::select(pre_post_data, pre2, pre4, pre7, pre15, pre19, pre20), na.rm = TRUE),
-         f_dass_anx_mean = rowMeans(dplyr::select(pre_post_data, post2, post4, post7, post15, post19, post20), na.rm = TRUE),
-         dass_dep_deteriorate_or_not = ifelse(f_dass_depress_mean - b_dass_depress_mean > 0.55, 1, 0),
-         dass_anx_deteriorate_or_not = ifelse(f_dass_anx_mean - b_dass_anx_mean > 0.64, 1, 0)) %>% # 9th item is misssing at post, for equivalence also took it out at pre, should double check what's happening here
-  dplyr::select(-c(pre1:pre21), -c(post1:post21),-contains("b_dass"),-contains("f_dass")) %>% 
-  filter(dass_dep_deteriorate_or_not == 1 | dass_dep_deteriorate_or_not == 0) %>%  
-  filter(dass_anx_deteriorate_or_not == 1 | dass_anx_deteriorate_or_not == 0)
-
-reduced_pre_post_data_with_dep_outcome <- reduced_pre_post_data_with_outcomes %>% 
-  dplyr::select(id_ema = id, dass_dep_deteriorate_or_not)
-
-reduced_pre_post_data_with_anx_outcome <- reduced_pre_post_data_with_outcomes %>% 
-  dplyr::select(id_ema = id, dass_anx_deteriorate_or_not)
-
-## Binding depression outcome to EMA data since we'll need that for when we nest the data later
-
-ema_data_with_dep_outcome <- ema_data %>% 
-  left_join(reduced_pre_post_data_with_dep_outcome, by = "id_ema") %>% 
-  filter(!is.na(dass_dep_deteriorate_or_not)) %>% 
-  mutate(dass_dep_deteriorate_or_not = as.factor(dass_dep_deteriorate_or_not))
-
-## And same with anxiety outcome
-
-ema_data_with_anx_outcome <- ema_data %>% 
-  left_join(reduced_pre_post_data_with_anx_outcome, by = "id_ema") %>% 
-  filter(!is.na(dass_anx_deteriorate_or_not)) %>% 
-  mutate(dass_anx_deteriorate_or_not = as.factor(dass_anx_deteriorate_or_not))
-
-## Seeing what % of folks did or didn't deteriorate a clinically significant amount
-
-reduced_pre_post_data_with_dep_outcome %>%
-  filter(id_ema %in% ema_data_with_dep_outcome$id_ema) %>% 
-  group_by(dass_dep_deteriorate_or_not) %>% 
-  tally()
-  
-reduced_pre_post_data_with_anx_outcome %>%
-  filter(id_ema %in% ema_data_with_anx_outcome$id_ema) %>% 
-  group_by(dass_anx_deteriorate_or_not) %>% 
-  tally()
-  
-
-
+## Creating outcomes for whether depression and/or anxiety clinically
+## significantly deteriorated over the course of the study
+depress_items <- c(3, 5, 10, 13, 16, 17, 21)
+b_dass_depress <- paste("pre", depress_items, sep = "")
+f_dass_depress <- paste("post", depress_items, sep = "")
+anx_items <- c(2, 4, 7, 15, 19, 20)
+b_dass_anx <- paste("pre", anx_items, sep = "")
+f_dass_anx <- paste("post", anx_items, sep = "")
+dass_means <- map_dfc(
+  list(b_dass_depress = b_dass_depress,
+       f_dass_depress = f_dass_depress,
+       b_dass_anx = b_dass_anx,
+       f_dass_anx = f_dass_anx),
+  ~ rowMeans(pre_post_data[.x], na.rm = TRUE)
+) 
+dep_outcome <- tibble(
+  id = pre_post_data$id,
+  dep_deteriorate = with(dass_means, f_dass_depress - b_dass_depress > 0.55)
+) %>% filter(!is.na(dep_deteriorate))
+anx_outcome <- tibble(
+  id = pre_post_data$id,
+  anx_deteriorate = with(dass_means, f_dass_anx - b_dass_anx > 0.64)
+) %>% filter(!is.na(anx_deteriorate))
+ema_data_with_dep_outcome <- inner_join(dep_outcome, ema_data, by = "id") 
+ema_data_with_anx_outcome <- inner_join(anx_outcome, ema_data, by = "id") 
+## Seeing what % of folks deteriorated a clinically significant amount
+full_join(dep_outcome, anx_outcome, by = "id") %>%
+  filter(id %in% ema_data$id) %>%
+  summarize_if(is.logical, mean) %>%
+  mutate_all(round, 2)
 ```
 
 ```{r adding a time variable to ema data to allow for later feature engineering}
 
-# Have to create a Time (in my case, 'time') variable where we sequence within each id from 1 to however many responses you give
+# Have to create a Time (in my case, 'time') variable where we sequence
+# within each id from 1 to however many responses you give
 
-# Tallying the number of responses per participant in the EMA
+# Creating the time variable + the id in integer form since the DTVEM
+# functions crash if ID is a character value
 
-ema_data_tally <- ema_data_with_dep_outcome %>% 
-  dplyr::group_by(id_ema) %>% 
-  dplyr::tally() %>% 
-  dplyr::select(id_ema, number_of_responses = n) %>% 
-  ungroup()
-
-## Joining this to a temporary data frame for naming/testing reasons (If this is where the error happens, want to be able to track it)
-
-ema_data_temp <- ema_data_with_dep_outcome %>% 
-  left_join(ema_data_tally, by = "id_ema")
-
-## Creating the time variable + the id in integer form since the DTVEM functions crash if ID is a character value
-
-ema_data_with_dep_outcome_num_resp <- ema_data_temp %>% 
-  dplyr::group_by(id_ema) %>% 
-  dplyr::mutate(time = 1:number_of_responses) %>% 
+ema_data_with_dep_outcome_num_resp <- ema_data_with_dep_outcome %>% 
+  group_by(id) %>% 
+  mutate(time = 1:n()) %>% 
   ungroup() %>% 
-  dplyr::mutate(id_int = as.numeric(as.factor(id_ema)))
-
+  mutate(id_int = as.integer(factor(id)))
 ```
 
 ```{r nesting the ema data for wide format and rsample breaking things up into training and testing}
