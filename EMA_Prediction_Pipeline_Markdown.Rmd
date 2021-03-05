@@ -207,7 +207,19 @@ ema_data <- read_csv("fried_mh_covid_data_ema.csv") %>%
     time_occupied_covid = q16, 
     time_think_health_covid = q17, 
     time_at_home = q18
-  ) %>% mutate_if(is.numeric, as.integer)
+  ) %>% mutate_if(is.numeric, as.integer) %>%
+  arrange(id, time) %>%
+  filter(!duration %in% c("Canceled", "Expired"))
+# check to see if time series are complete
+## does everyone have 14 days?
+too_few_days <- ema_data %>% 
+  group_by(id) %>% 
+  summarize(n_days = n_distinct(day)) %>%
+  filter(n_days != 14)
+too_few_days
+## does anyone have more than 4 observations for any given day?
+too_many_obs <- ema_data %>% count(id, day) %>% filter(n > 4)
+too_many_obs
 ```
 
 ```{r creating ema data with outcome data}
