@@ -24,7 +24,9 @@ knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE
 ## Setting up pyton within Rstudio
 
 ## Using these steps https://support.rstudio.com/hc/en-us/articles/360023654474-Installing-and-Configuring-Python-with-RStudio
-## Though for step 2 I used conda to make sure I used a later Python off the system path as outlined here https://support.rstudio.com/hc/en-us/articles/360022909454-Best-Practices-for-Using-Python-with-RStudio-Connect
+
+## For step 2 I used to use conda to make sure I used a later Python off the system path as outlined here, but that caused more headaches so I just follow all steps outlined in the website above instead. https://support.rstudio.com/hc/en-us/articles/360022909454-Best-Practices-for-Using-Python-with-RStudio-Connect
+
 ## Here's a video that also walks through the process https://docs.rstudio.com/tutorials/user/using-python-with-rstudio-and-reticulate/
 
 if(!require(reticulate)){install.packages('reticulate')}
