@@ -358,9 +358,9 @@ print(r.train_long_ema_data) # Looks similar as the timeseries data
 
 type(r.train_long_ema_data) # Has same type as timeseries
 
-r.train_long_ema_data.dtypes
+r.train_long_ema_data.dtypes # If we read in this data with the depression outcome as a boolean (which shouldn't be in the data at all) tsfresh won't work
 
-r.train_long_ema_data_ts_fresh.dtypes
+r.train_long_ema_data_ts_fresh.dtypes # So we read in the updated data without the depression outcome as boolean
 
 extracted_features_r = extract_features(r.train_long_ema_data_ts_fresh, column_id="id_int", column_sort="time")
 
