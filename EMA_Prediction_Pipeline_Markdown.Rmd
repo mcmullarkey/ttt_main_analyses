@@ -275,7 +275,7 @@ ema_data_with_dep_outcome_num_resp <- ema_data_with_dep_outcome %>%
 ## Nesting the data so the ema data can be included within a wide format (Helps us break up into training/testing + create custom recipe steps)
 
 nested_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
-  group_by(id_ema, dass_dep_deteriorate_or_not) %>%
+  group_by(id, dep_deteriorate) %>%
   nest() %>% 
   dplyr::rename(ema_data = data)
 
@@ -283,7 +283,7 @@ nested_ema_data <- ema_data_with_dep_outcome_num_resp %>%
 
 set.seed(33)
 # Put 1/2 of the data into the training set, stratify based on the ts_diff outcome 
-nested_ema_data_split <- initial_split(nested_ema_data, prop = 1/2, strata = dass_dep_deteriorate_or_not)
+nested_ema_data_split <- initial_split(nested_ema_data, prop = 1/2, strata = dep_deteriorate)
 
 # Create data frames for the two sets:
 train_nested_ema_data <- training(nested_ema_data_split)
@@ -294,29 +294,38 @@ test_nested_ema_data  <- testing(nested_ema_data_split)
 ```{r creating long form training and testing data}
 
 train_long_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
-  dplyr::select(id_ema, contains("_1"), contains("_2"),contains("dass"),contains("time")) %>% 
-  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
-  group_by(id_ema) %>% 
+  dplyr::select(contains("id"), contains("_1"), contains("_2"),contains("dep"),contains("time")) %>% 
+  filter(id %in% train_nested_ema_data$id) %>% 
+  dplyr::select(-id) %>% 
+  group_by(id_int) %>% 
   complete(time = 1:56) %>%
   dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
   )) %>%
   ungroup() %>% 
   print()
 
+train_long_ema_data_ts_fresh <- train_long_ema_data %>% 
+  dplyr::select(-contains("dep"))
+
 train_outcome_wide <- train_nested_ema_data %>% 
   unnest() %>% 
-  distinct(id_ema, .keep_all = T) %>% 
+  distinct(id, .keep_all = T) %>% 
   ungroup() %>% 
-  dplyr::select(contains("dass"))
+  dplyr::select(contains("dep"))
 
 test_long_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
-  dplyr::select(id_ema, contains("_1"), contains("_2"),contains("time")) %>% 
-  filter(id_ema %in% test_nested_ema_data$id_ema) %>% 
-  group_by(id_ema) %>% 
+  dplyr::select(id, contains("_1"), contains("_2"),contains("time")) %>% 
+  filter(id %in% test_nested_ema_data$id) %>% 
+  group_by(id) %>% 
+  complete(time = 1:56) %>% 
   dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
   )) %>% 
   ungroup() %>%
   print()
+
+## Creating the number of cores to use in parallel for tsfresh (Only using physical cores with logical = FALSE)
+
+cores <- detectCores(logical = FALSE) - 1L
 
 ```
 
@@ -327,9 +336,33 @@ test_long_ema_data <- ema_data_with_dep_outcome_num_resp %>%
 
 ## Use this page as a guideline for switching back and forth between Pyton and R within RStudio/RMarkdown https://rstudio.github.io/reticulate/articles/r_markdown.html
 
-from tsfresh import extract_features
+## Example from the docs works https://tsfresh.readthedocs.io/en/latest/text/quick_start.html
 
-extracted_features = extract_features(r.train_long_ema_data, column_id="id_ema", column_sort="time")
+from tsfresh.examples.robot_execution_failures import download_robot_execution_failures, \
+    load_robot_execution_failures
+download_robot_execution_failures()
+timeseries, y = load_robot_execution_failures()
+
+print(timeseries)
+
+type(timeseries)
+
+timeseries.dtypes
+
+from tsfresh import extract_features
+extracted_features = extract_features(timeseries, column_id="id", column_sort="time")
+
+## Trying to apply that to our data
+
+print(r.train_long_ema_data) # Looks similar as the timeseries data
+
+type(r.train_long_ema_data) # Has same type as timeseries
+
+r.train_long_ema_data.dtypes
+
+r.train_long_ema_data_ts_fresh.dtypes
+
+extracted_features_r = extract_features(r.train_long_ema_data_ts_fresh, column_id="id_int", column_sort="time")
 
 ```
 
@@ -344,7 +377,7 @@ not_all_na <- function(x) {!all(is.na(x))}
 not_all_zero <- function(x) {!all(x == 0)}
 
 tic()
-ts_fresh_features <- as_tibble(py$extracted_features) %>% 
+ts_fresh_features <- as_tibble(py$extracted_features_r) %>% 
   clean_names() %>% 
   select_if(not_all_na) %>% 
   select_if(not_all_zero)
@@ -353,8 +386,8 @@ toc()
 glimpse(ts_fresh_features) 
 
 ts_fresh_features_with_id <- ts_fresh_features %>% 
-  bind_cols(train_nested_ema_data %>% ungroup() %>% dplyr::select(id_ema)) %>% 
-  relocate(id_ema, everything())
+  bind_cols(train_nested_ema_data %>% ungroup() %>% dplyr::select(id)) %>% 
+  relocate(id, everything())
   
 
 ```
@@ -442,7 +475,7 @@ exclude_dtw_same_var_features <- function(.data){
 # Have to create id only column data frame to bind back with this function at the end
 
 tidyverse_lags_id_only <- train_nested_ema_data %>% 
-  dplyr::select(-ema_data, -dass_dep_deteriorate_or_not)
+  dplyr::select(-ema_data, -contains("dep"))
 
 # Now the function
 
@@ -452,19 +485,19 @@ train_data_with_dtw_stats <- ema_data_with_dep_outcome_num_resp %>%
   group_by(id_ema) %>% 
   complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
   ungroup() %>% 
-  as_tsibble(key = id_ema, index = time) %>% 
+  as_tsibble(key = id, index = time) %>% 
   group_by(id_ema) %>% 
   tidy_imputation() %>% 
   dplyr::select(where(is.numeric)) %>% 
   ungroup() %>%
   as_tibble() %>% 
   dplyr::select(-time) %>% 
-  group_split(id_ema) %>% 
+  group_split(id) %>% 
   map(creating_dtw_distances) %>%
   map_dfr(pivoting_dtw_results_wider) %>% 
   exclude_dtw_same_var_features() %>% 
   bind_cols(tidyverse_lags_id_only) %>% 
-  relocate(id_ema, contains("dass"), everything()) %>% 
+  relocate(id, contains("dass"), everything()) %>% 
   dplyr::select(-contains("dass"))
 toc()
 
