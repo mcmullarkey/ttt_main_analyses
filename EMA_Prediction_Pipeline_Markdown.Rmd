@@ -246,7 +246,7 @@ too_many_obs
 ## Taking the first response of the two in this case (You could average, but only accepting the first one as valid seems more in line with the data generating process for the other responses, though that's a subjective call)
 
 ema_data <- ema_data_sec %>% 
-  group_by(id) %>%
+  group_by(id, day) %>%
   mutate(row = row_number()) %>% 
   filter(row <= 4) %>%
   dplyr::select(-row) %>% 
