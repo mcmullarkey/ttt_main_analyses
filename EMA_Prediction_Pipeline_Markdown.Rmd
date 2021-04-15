@@ -701,6 +701,8 @@ base_model_plots_all_rs <- map(base_model_fit_all_rs, ~{
 
 ```
 
+## THE CODE CURRENTLY IN USE ENDS HERE
+
 ```{r getting training data ready for FsNet Autoencoder}
 
 x_train_tbl <- train_data_with_summ_stats_imp_nzv %>% 
@@ -715,8 +717,6 @@ id_train_vec <-  train_data_with_summ_stats_imp_nzv %>%
   dplyr::select(id_ema) %>% pull()
 
 ```
-
-## THE CODE CURRENTLY IN USE ENDS HERE
 
 ```{python running FsNet as deep learning non linear dimension reduction}
 
