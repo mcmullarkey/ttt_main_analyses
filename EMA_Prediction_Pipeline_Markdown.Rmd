@@ -21,6 +21,11 @@ knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE
 
 ```{r}
 
+## Need to load tensorflow into r (since it's a dependency for the embed package with the umap non-linear dimensionality reduction) before we point to the Python environment
+
+library(tensorflow)
+install_tensorflow()
+
 ## Setting up pyton within Rstudio
 
 ## Using these steps https://support.rstudio.com/hc/en-us/articles/360023654474-Installing-and-Configuring-Python-with-RStudio
@@ -166,6 +171,10 @@ if(!require(pheatmap)){install.packages('pheatmap')}
 library(pheatmap)
 if(!require(diffdf)){install.packages('diffdf')}
 library(diffdf)
+if(!require(embed)){install.packages('embed')}
+library(embed)
+if(!require(keras)){install.packages('keras')}
+library(keras)
 
 ## Let's set our number of cores for this document (May differ across computers)
 
@@ -968,8 +977,8 @@ best_model_weights %>% save_model_hdf5("best_autoencoder_auc.h5")
 ## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
 
 rec_ema_pca <- 
-  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-  update_role(id_ema, new_role = "id") %>% 
+  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+  update_role(id, new_role = "id") %>% 
   step_pca(all_predictors(), num_comp = 25)
 
 ## Could also work on making threshold tunable
@@ -981,10 +990,22 @@ rec_ema_pca <-
 ## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
 
 rec_ema_raw_pred <- 
-  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-  update_role(id_ema, new_role = "id")
+  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+  update_role(id, new_role = "id")
 
 ```
+
+```{r creating a recipe for running a predictive model with the umap features}
+
+## This is supervised, non-linear dimensionality reduction without needing to use an autoencoder
+
+rec_ema_umap <- 
+  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+  update_role(id, new_role = "id") %>% 
+  step_umap(all_predictors(), outcome = vars(dep_deteriorate), num_comp = 25)
+
+```
+
 
 ```{r testing whether the preliminary recipe works within a workflow}
 
