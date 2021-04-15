@@ -553,6 +553,127 @@ toc()
 
 ```
 
+```{r creating recipe for running a predictive model with pca generated features}
+
+## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
+
+rec_ema_pca <- 
+  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+  update_role(id, new_role = "id") %>% 
+  step_pca(all_predictors(), num_comp = 25)
+
+## Could also work on making threshold tunable
+
+```
+
+```{r creating recipe for running a predictive model with the raw features}
+
+## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
+
+rec_ema_raw_pred <- 
+  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+  update_role(id, new_role = "id")
+
+```
+
+```{r creating a recipe for running a predictive model with the umap features}
+
+## This is supervised, non-linear dimensionality reduction without needing to use an autoencoder
+
+rec_ema_umap <- 
+  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+  update_role(id, new_role = "id") %>% 
+  step_umap(all_predictors(), outcome = vars(dep_deteriorate), num_comp = 5)
+
+```
+
+
+```{r testing whether the preliminary recipe works within a workflow}
+
+# Create a random forest model
+
+rf_mod <- rand_forest() %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+# Create a list of preprocessing recipes
+
+base_model_rec_list <- list(rec_ema_umap, rec_ema_pca, rec_ema_raw_pred)
+
+# Combining each recipe into a tidymodels workflows using a map function
+
+base_model_wfs <- map(base_model_rec_list, ~{
+  
+  ema_autoencoder_rf_wf <- workflow() %>% 
+  add_recipe(.x) %>% 
+  add_model(rf_mod)
+}
+)
+
+# Create as list of dataframes we'll be using to fit these models
+
+base_model_data_list <- list(train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv)
+
+# Fitting each model once to make sure they run, and they do
+
+base_model_one_time_fit <- map2(base_model_wfs, base_model_data_list, ~{
+  
+tic()
+ema_rf_wf_fit <- fit(.x, data = .y)
+toc()
+ema_rf_wf_fit
+  
+})
+
+```
+
+```{r}
+
+## Fit resamples is having a hard time running these models (no errors but just continuing trying to compute for long periods of time without actually completing the computation). Might have something to do with this issue: https://github.com/tidymodels/tune/issues/206
+
+base_model_fit_all_rs <- map2(base_model_wfs, base_model_data_list, ~{
+  
+registerDoMC(cores = 7)
+
+set.seed(33)
+folds_ema_pred <- vfold_cv(.y, v = 4, repeats = 10, strata = dep_deteriorate)
+
+## Run the CV models here
+keep_pred <- control_resamples(save_pred = TRUE)
+tic()
+set.seed(33)
+rf_fit_rs <- 
+  .x %>% 
+  fit_resamples(folds_ema_pred, control = keep_pred)
+toc()
+rf_fit_rs
+
+} 
+)
+
+## Saving the predictions/actual differences here
+
+base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
+  
+  auc <- .x %>% 
+  collect_predictions(summarize = TRUE) %>% 
+  roc_auc(truth = dep_deteriorate, .estimate = .pred_TRUE)
+
+}) %>% 
+  print()
+
+base_model_plots_all_rs <- map(base_model_fit_all_rs, ~{
+  
+  auc <- .x %>% 
+  collect_predictions(summarize = TRUE) %>% 
+  roc_curve(truth = dep_deteriorate, .estimate = .pred_TRUE) %>% 
+  autoplot()
+
+}) %>% 
+  print()
+
+```
+
 ```{r getting training data ready for FsNet Autoencoder}
 
 x_train_tbl <- train_data_with_summ_stats_imp_nzv %>% 
@@ -568,6 +689,7 @@ id_train_vec <-  train_data_with_summ_stats_imp_nzv %>%
 
 ```
 
+## THE CODE CURRENTLY IN USE ENDS HERE
 
 ```{python running FsNet as deep learning non linear dimension reduction}
 
@@ -791,7 +913,6 @@ for ii in range(0,num_exp):
 
 ```
 
-
 ```{r running autoencoder function}
 
 ## Having to mix together resources to figure out the autoencoder. This youtube video https://www.youtube.com/watch?v=oDhpIDBQSzw and this free textbook on supervised machine learning for text are what I'm using right now
@@ -969,127 +1090,6 @@ flattened_list_dfs_models <- flatten(one_hundred_runs_of_autoencoder_fit) %>%
 best_model_weights <- pluck(flattened_list_dfs_models, which.max(vec_of_auc))
 
 best_model_weights %>% save_model_hdf5("best_autoencoder_auc.h5")
-
-```
-
-```{r creating recipe for running a predictive model with pca generated features}
-
-## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
-
-rec_ema_pca <- 
-  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-  update_role(id, new_role = "id") %>% 
-  step_pca(all_predictors(), num_comp = 25)
-
-## Could also work on making threshold tunable
-
-```
-
-```{r creating recipe for running a predictive model with the raw features}
-
-## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
-
-rec_ema_raw_pred <- 
-  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-  update_role(id, new_role = "id")
-
-```
-
-```{r creating a recipe for running a predictive model with the umap features}
-
-## This is supervised, non-linear dimensionality reduction without needing to use an autoencoder
-
-rec_ema_umap <- 
-  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-  update_role(id, new_role = "id") %>% 
-  step_umap(all_predictors(), outcome = vars(dep_deteriorate), num_comp = 5)
-
-```
-
-
-```{r testing whether the preliminary recipe works within a workflow}
-
-# Create a random forest model
-
-rf_mod <- rand_forest() %>% 
-  set_engine("ranger") %>% 
-  set_mode("classification")
-
-# Create a list of preprocessing recipes
-
-base_model_rec_list <- list(rec_ema_umap, rec_ema_pca, rec_ema_raw_pred)
-
-# Combining each recipe into a tidymodels workflows using a map function
-
-base_model_wfs <- map(base_model_rec_list, ~{
-  
-  ema_autoencoder_rf_wf <- workflow() %>% 
-  add_recipe(.x) %>% 
-  add_model(rf_mod)
-}
-)
-
-# Create as list of dataframes we'll be using to fit these models
-
-base_model_data_list <- list(train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv)
-
-# Fitting each model once to make sure they run, and they do
-
-base_model_one_time_fit <- map2(base_model_wfs, base_model_data_list, ~{
-  
-tic()
-ema_rf_wf_fit <- fit(.x, data = .y)
-toc()
-ema_rf_wf_fit
-  
-})
-
-```
-
-```{r}
-
-## Fit resamples is having a hard time running these models (no errors but just continuing trying to compute for long periods of time without actually completing the computation). Might have something to do with this issue: https://github.com/tidymodels/tune/issues/206
-
-base_model_fit_all_rs <- map2(base_model_wfs, base_model_data_list, ~{
-  
-registerDoMC(cores = 7)
-
-set.seed(33)
-folds_ema_pred <- vfold_cv(.y, v = 4, repeats = 10, strata = dep_deteriorate)
-
-## Run the CV models here
-keep_pred <- control_resamples(save_pred = TRUE)
-tic()
-set.seed(33)
-rf_fit_rs <- 
-  .x %>% 
-  fit_resamples(folds_ema_pred, control = keep_pred)
-toc()
-rf_fit_rs
-
-} 
-)
-
-## Saving the predictions/actual differences here
-
-base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
-  
-  auc <- .x %>% 
-  collect_predictions(summarize = TRUE) %>% 
-  roc_auc(truth = dep_deteriorate, .estimate = .pred_TRUE)
-
-}) %>% 
-  print()
-
-base_model_plots_all_rs <- map(base_model_fit_all_rs, ~{
-  
-  auc <- .x %>% 
-  collect_predictions(summarize = TRUE) %>% 
-  roc_curve(truth = dep_deteriorate, .estimate = .pred_TRUE) %>% 
-  autoplot()
-
-}) %>% 
-  print()
 
 ```
 
