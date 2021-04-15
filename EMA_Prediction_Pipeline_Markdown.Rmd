@@ -979,7 +979,7 @@ best_model_weights %>% save_model_hdf5("best_autoencoder_auc.h5")
 rec_ema_pca <- 
   recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
   update_role(id, new_role = "id") %>% 
-  step_pca(all_predictors(), num_comp = 5)
+  step_pca(all_predictors(), num_comp = 25)
 
 ## Could also work on making threshold tunable
 
