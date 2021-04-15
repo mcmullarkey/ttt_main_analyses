@@ -979,7 +979,7 @@ best_model_weights %>% save_model_hdf5("best_autoencoder_auc.h5")
 rec_ema_pca <- 
   recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
   update_role(id, new_role = "id") %>% 
-  step_pca(all_predictors(), num_comp = 25)
+  step_pca(all_predictors(), num_comp = 5)
 
 ## Could also work on making threshold tunable
 
@@ -1002,7 +1002,7 @@ rec_ema_raw_pred <-
 rec_ema_umap <- 
   recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
   update_role(id, new_role = "id") %>% 
-  step_umap(all_predictors(), outcome = vars(dep_deteriorate), num_comp = 25)
+  step_umap(all_predictors(), outcome = vars(dep_deteriorate), num_comp = 5)
 
 ```
 
@@ -1017,7 +1017,7 @@ rf_mod <- rand_forest() %>%
 
 # Create a list of preprocessing recipes
 
-base_model_rec_list <- list(rec_ema_pca, rec_ema_raw_pred)
+base_model_rec_list <- list(rec_ema_umap, rec_ema_pca, rec_ema_raw_pred)
 
 # Combining each recipe into a tidymodels workflows using a map function
 
@@ -1031,7 +1031,7 @@ base_model_wfs <- map(base_model_rec_list, ~{
 
 # Create as list of dataframes we'll be using to fit these models
 
-base_model_data_list <- list(train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv)
+base_model_data_list <- list(train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv)
 
 # Fitting each model once to make sure they run, and they do
 
@@ -1055,7 +1055,7 @@ base_model_fit_all_rs <- map2(base_model_wfs, base_model_data_list, ~{
 registerDoMC(cores = 7)
 
 set.seed(33)
-folds_ema_pred <- vfold_cv(.y, v = 4, repeats = 10, strata = dass_dep_deteriorate_or_not)
+folds_ema_pred <- vfold_cv(.y, v = 4, repeats = 10, strata = dep_deteriorate)
 
 ## Run the CV models here
 keep_pred <- control_resamples(save_pred = TRUE)
@@ -1076,7 +1076,7 @@ base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
   
   auc <- .x %>% 
   collect_predictions(summarize = TRUE) %>% 
-  roc_auc(truth = dass_dep_deteriorate_or_not, .estimate = .pred_1)
+  roc_auc(truth = dep_deteriorate, .estimate = .pred_TRUE)
 
 }) %>% 
   print()
@@ -1085,7 +1085,7 @@ base_model_plots_all_rs <- map(base_model_fit_all_rs, ~{
   
   auc <- .x %>% 
   collect_predictions(summarize = TRUE) %>% 
-  roc_curve(truth = dass_dep_deteriorate_or_not, .estimate = .pred_1) %>% 
+  roc_curve(truth = dep_deteriorate, .estimate = .pred_TRUE) %>% 
   autoplot()
 
 }) %>% 
