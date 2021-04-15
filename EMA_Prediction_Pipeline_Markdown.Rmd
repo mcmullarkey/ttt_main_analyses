@@ -197,7 +197,7 @@ pre_post_data <- read_csv("fried_mh_covid_data_pre_post.csv") %>%
 
 ## Reading in EMA data
 
-ema_data <- read_csv("fried_mh_covid_data_ema.csv") %>% 
+ema_data_init <- read_csv("fried_mh_covid_data_ema.csv") %>% 
   clean_names() %>% 
   rename(
     stress_1 = q1, 
@@ -223,14 +223,41 @@ ema_data <- read_csv("fried_mh_covid_data_ema.csv") %>%
   filter(!duration %in% c("Canceled", "Expired"))
 # check to see if time series are complete
 ## does everyone have 14 days?
-too_few_days <- ema_data %>% 
+too_few_days <- ema_data_init %>% 
   group_by(id) %>% 
   summarize(n_days = n_distinct(day)) %>%
-  filter(n_days != 14)
+  filter(n_days < 7)
 too_few_days
+
+## Let's keep everyone with at least half the days (we only lose one person this way)
+
+ema_data_sec <- ema_data_init %>% 
+  filter(!id %in% too_few_days$id)
+
+# Confirm they've been dropped
+
+ema_data_sec %>% 
+  filter(str_detect(id, "25351"))
+
 ## does anyone have more than 4 observations for any given day?
-too_many_obs <- ema_data %>% count(id, day) %>% filter(n > 4)
+too_many_obs <- ema_data_sec %>% count(id, day) %>% filter(n > 4)
 too_many_obs
+
+## Taking the first response of the two in this case (You could average, but only accepting the first one as valid seems more in line with the data generating process for the other responses, though that's a subjective call)
+
+ema_data <- ema_data_sec %>% 
+  group_by(id) %>%
+  mutate(row = row_number()) %>% 
+  filter(row <= 4) %>%
+  dplyr::select(-row) %>% 
+  ungroup()
+
+# Confirming the later row was dropped for that participant and no one else has more than 4 observations in a day
+
+ema_data %>% 
+  count(id, day) %>% 
+  filter(n > 4)
+  
 ```
 
 ```{r creating ema data with outcome data}
