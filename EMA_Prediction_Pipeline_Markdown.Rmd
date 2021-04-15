@@ -403,7 +403,7 @@ ts_fresh_features_with_id <- ts_fresh_features %>%
 tidy_imputation <- function(.data){
 
   tidyverse_lags_test <- .data %>%
-  dplyr::select(-c(beepvar, id_int, number_of_responses)) %>%
+  dplyr::select(-c(beepvar, id_int)) %>%
   dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
   ))
 
@@ -417,13 +417,13 @@ tidy_imputation <- function(.data){
 creating_dtw_distances <- function(.data){
 
   row_names <- .data %>% 
-    dplyr::select(-id_ema) %>% 
+    dplyr::select(-id) %>% 
     names()
   column_names <- .data %>% 
-    dplyr::select(-id_ema) %>% 
+    dplyr::select(-id) %>% 
     names()
   
-  distance <- parDist(.data %>% dplyr::select(-id_ema) %>%  as.matrix(), method = "dtw", 
+  distance <- parDist(.data %>% dplyr::select(-id) %>%  as.matrix(), method = "dtw", 
     window.type = "sakoechiba", window.size = 2, step.pattern = "symmetricP0")
   
   distance <- as.matrix(distance)
@@ -462,7 +462,7 @@ pivoting_dtw_results_wider <- function(.data){
 exclude_dtw_same_var_features <- function(.data){
   
   ready_for_dup_name <- ema_data_with_dep_outcome_num_resp %>% 
-    dplyr::select(-c(time, beepvar, id_int, number_of_responses)) %>%
+    dplyr::select(-c(time, beepvar, id_int)) %>%
     dplyr::select(where(is.numeric)) %>% 
     names()
   
@@ -483,12 +483,12 @@ tidyverse_lags_id_only <- train_nested_ema_data %>%
 
 tic()
 train_data_with_dtw_stats <- ema_data_with_dep_outcome_num_resp %>%
-  filter(id_ema %in% train_nested_ema_data$id_ema) %>% 
-  group_by(id_ema) %>% 
+  filter(id %in% train_nested_ema_data$id) %>% 
+  group_by(id) %>% 
   complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
   ungroup() %>% 
   as_tsibble(key = id, index = time) %>% 
-  group_by(id_ema) %>% 
+  group_by(id) %>% 
   tidy_imputation() %>% 
   dplyr::select(where(is.numeric)) %>% 
   ungroup() %>%
@@ -512,20 +512,24 @@ toc()
 
 tic()
 train_data_preprocessing <- ts_fresh_features_with_id %>% 
-  left_join(train_data_with_dtw_stats, by = "id_ema") %>%
+  left_join(train_data_with_dtw_stats, by = "id") %>%
+  dplyr::select(-dep_deteriorate) %>% 
   # left_join(train_data_with_weekday_weekend_initial_features, by = "id_ema") %>%
   mutate(across(everything(), ~ifelse(is.nan(.x), NA, .x))) %>% 
   mutate(across(everything(), ~ifelse(is.infinite(.x), NA, .x))) %>% 
-  bind_cols(train_outcome_wide)
+  bind_cols(train_outcome_wide) %>% 
+  mutate(dep_deteriorate = as.factor(dep_deteriorate))
 toc()
+
+train_data_preprocessing$dep_deteriorate
 
 ## Using prep and bake with recipes to preprocess data (Getting rid of near zero variance features, normalizing all variables (necessary preprocessing for the neural network autoencoder), and using K nearest neighbors to impute missing predictor data
 
 ## Maybe add a Box_Cox Step? Should visualize skew/non skew of predictors before and after to check
 
 rec_ema_for_autoencoder <- 
-  recipes::recipe(dass_dep_deteriorate_or_not ~ ., data = train_data_preprocessing) %>% 
-  update_role(id_ema, new_role = "id") %>% 
+  recipes::recipe(dep_deteriorate~ ., data = train_data_preprocessing) %>% 
+  update_role(id, new_role = "id") %>% 
   step_nzv(all_predictors()) %>%
   step_normalize(all_predictors()) %>%
   step_knnimpute(all_predictors()) %>% 
