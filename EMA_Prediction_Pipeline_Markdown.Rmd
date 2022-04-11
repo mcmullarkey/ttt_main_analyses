@@ -18,6 +18,15 @@ require("knitr")
 knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE, include = FALSE)
 ## Adding comment to see if Git works
 
+library("usethis")
+git_sitrep() # git situation report
+
+gitcreds::gitcreds_set()
+
+gitcreds::gitcreds_get()
+
+credentials::set_github_pat()
+
 ```
 
 ```{r}
