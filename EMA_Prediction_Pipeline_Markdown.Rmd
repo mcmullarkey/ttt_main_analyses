@@ -22,8 +22,8 @@ knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE
 
 ## Need to load tensorflow into r (since it's a dependency for the embed package with the umap non-linear dimensionality reduction) before we point to the Python environment
 
-library(tensorflow)
-install_tensorflow()
+# library(tensorflow)
+# tensorflow::install_tensorflow()
 
 ## Setting up pyton within Rstudio
 
@@ -42,6 +42,9 @@ library(reticulate)
 use_condaenv("ttt-reticulate-yml")
 
 py_config()
+
+library(tensorflow)
+tensorflow::install_tensorflow(method = "conda")
 
 
 ```
@@ -101,10 +104,14 @@ if(!require(pheatmap)){install.packages('pheatmap')}
 library(pheatmap)
 if(!require(diffdf)){install.packages('diffdf')}
 library(diffdf)
-if(!require(embed)){install.packages('embed')}
-library(embed)
+if(!require(tensorflow)){install.packages('tensorflow')}
+library(tensorflow)
 if(!require(keras)){install.packages('keras')}
 library(keras)
+if(!require(embed)){install.packages('embed')}
+library(embed)
+if(!require(lubridate)){install.packages('lubridate')}
+library(lubridate)
 
 ## Let's set our number of cores for this document (May differ across computers)
 
@@ -118,75 +125,74 @@ registerDoMC(cores = 7)
 
 ## Reading in pre/post data for the college students
 
-pre_post_data <- read_csv("fried_mh_covid_data_pre_post.csv") %>% 
+pre_post_data <- read_csv("cleaned_qualtrics_ttt_phase_1.csv") %>% 
   clean_names()
 
 ```
+
+```{r}
+
+pre_post_data
+
+```
+
 
 ```{r reading in ema data}
 
 ## Reading in EMA data
 
-ema_data_init <- read_csv("fried_mh_covid_data_ema.csv") %>% 
-  clean_names() %>% 
-  rename(
-    stress_1 = q1, 
-    stress_2 = q2, 
-    anx_1 = q3, 
-    anx_2 = q4, 
-    dep_1 = q5, 
-    dep_2 = q6,
-    fatigue_1 = q7, 
-    hunger_1 = q8, 
-    lonely_1 = q9, 
-    anger_1 = q10, 
-    time_soc_contact = q11,
-    time_soc_media_use = q12, 
-    time_listen_to_music = q13, 
-    time_procrast = q14, 
-    time_outdoors = q15, 
-    time_occupied_covid = q16, 
-    time_think_health_covid = q17, 
-    time_at_home = q18
-  ) %>% mutate_if(is.numeric, as.integer) %>%
-  arrange(id, time) %>%
-  filter(!duration %in% c("Canceled", "Expired"))
-# check to see if time series are complete
-## does everyone have 14 days?
-too_few_days <- ema_data_init %>% 
-  group_by(id) %>% 
-  summarize(n_days = n_distinct(day)) %>%
-  filter(n_days < 7)
-too_few_days
+ema_data_init <- read_csv("cleaned_lifepak_ttt_phase_1.csv") %>% 
+  clean_names()
+
+```
+
+```{r}
+
+# check to see if anyone doesn't have enough data to even approximate a series
+
+too_few_sessions <- ema_data_init %>% 
+  group_by(lifepak_id) %>% 
+  count(completed_session) %>% 
+  filter(completed_session == 1 & n == 1) %>% 
+  print()
 
 ## Let's keep everyone with at least half the days (we only lose one person this way)
 
 ema_data_sec <- ema_data_init %>% 
-  filter(!id %in% too_few_days$id)
+  filter(!lifepak_id %in% too_few_sessions$lifepak_id)
 
 # Confirm they've been dropped
 
 ema_data_sec %>% 
-  filter(str_detect(id, "25351"))
+  group_by(lifepak_id) %>% 
+  count(completed_session) %>% 
+  filter(completed_session == 1 & n == 1)
+
+```
+
+```{r}
 
 ## does anyone have more than 4 observations for any given day?
-too_many_obs <- ema_data_sec %>% count(id, day) %>% filter(n > 4)
-too_many_obs
+too_many_obs <- ema_data_sec %>% 
+  mutate(day = day(notification_time)) %>% 
+  count(lifepak_id, day) %>% 
+  filter(n > 5)
 
 ## Taking the first response of the two in this case (You could average, but only accepting the first one as valid seems more in line with the data generating process for the other responses, though that's a subjective call)
 
 ema_data <- ema_data_sec %>% 
-  group_by(id, day) %>%
+  mutate(day = day(notification_time)) %>%
+  group_by(lifepak_id, day) %>%
   mutate(row = row_number()) %>% 
-  filter(row <= 4) %>%
+  filter(row <= 5) %>%
   dplyr::select(-row) %>% 
   ungroup()
 
 # Confirming the later row was dropped for that participant and no one else has more than 4 observations in a day
 
 ema_data %>% 
-  count(id, day) %>% 
-  filter(n > 4)
+  count(lifepak_id, day) %>% 
+  filter(n > 5)
   
 ```
 
