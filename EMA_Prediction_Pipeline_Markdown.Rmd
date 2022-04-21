@@ -16,21 +16,6 @@ geometry: margin=0.50in
 require("knitr")
 ## setting working directory
 knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE, include = FALSE)
-## Adding comment to see if Git works
-
-library("usethis")
-git_sitrep() # git situation report
-
-gitcreds::gitcreds_set()
-
-gitcreds::gitcreds_get()
-
-credentials::set_github_pat()
-
-## Add comment again
-
-## Add comment from new computer
-
 ```
 
 ```{r}
@@ -51,59 +36,39 @@ install_tensorflow()
 if(!require(reticulate)){install.packages('reticulate')}
 library(reticulate)
 
-reticulate::py_config()
+# Only run this once to create the environment
+# conda_create("ttt-reticulate-yml", environment = "ttt_conda_environment.yml")
+
+use_condaenv("ttt-reticulate-yml")
+
+py_config()
+
 
 ```
+
+```{python}
+
+# Checking Python is working within RStudio
+
+1 + 1
+
+```
+
 
 ```{r loading packages}
 
 if(!require(tidymodels)){install.packages('tidymodels')}
 library(tidymodels)
-if(!require(readr)){install.packages('readr')}
-library(readr)
-if(!require(broom.mixed)){install.packages('broom.mixed')}
-library(broom.mixed)
 if(!require(tidyverse)){install.packages('tidyverse')}
 library(tidyverse)
-if(!require(nycflights13)){install.packages('nycflights13')}
-library(nycflights13)
 if(!require(skimr)){install.packages('skimr')}
 library(skimr)
-if(!require(modeldata)){install.packages('modeldata')}
-library(modeldata)
-if(!require(ranger)){install.packages('ranger')}
-library(ranger)
-if(!require(vip)){install.packages('vip')}
-library(vip)
-if(!require(gt)){install.packages('gt')}
-library(gt)
-if(!require(ggthemes)){install.packages('ggthemes')}
-library(ggthemes)
-if(!require(xgboost)){install.packages('xgboost')}
-library(xgboost)
 if(!require(furrr)){install.packages('furrr')}
 library(furrr)
-if(!require(kernlab)){install.packages('kernlab')}
-library(kernlab)
-if(!require(mlbench)){install.packages('mlbench')}
-library(mlbench)
-if(!require(scales)){install.packages('scales')}
-library(scales)
-if(!require(tidyposterior)){install.packages('tidyposterior')}
-library(tidyposterior)
-if(!require(rstanarm)){install.packages('rstanarm')}
-library(rstanarm)
 if(!require(tictoc)){install.packages('tictoc')}
 library(tictoc)
-# library(devtools)
-# devtools::install_github("abresler/nbastatR")
-library(nbastatR)
 if(!require(heatmaply)){install.packages('heatmaply')}
 library(heatmaply)
-if(!require(ggmosaic)){install.packages('ggmosaic')}
-library(ggmosaic)
-if(!require(splines)){install.packages('splines')}
-library(splines)
 if(!require(doMC)){install.packages('doMC')}
 library(doMC)
 if(!require(glue)){install.packages('glue')}
@@ -116,59 +81,10 @@ if(!require(future)){install.packages('future')}
 library(future)
 if(!require(reticulate)){install.packages('reticulate')}
 library(reticulate)
-if(!require(furrr)){install.packages('furrr')}
-library(furrr)
-if(!require(tuber)){install.packages('tuber')}
-library(tuber)
-if(!require(tidytext)){install.packages('tidytext')}
-library(tidytext)
-if(!require(topicmodels)){install.packages('topicmodels')}
-library(topicmodels)
-if(!require(wordcloud)){install.packages('wordcloud')}
-library(wordcloud)
-if(!require(reshape2)){install.packages('reshape2')}
-library(reshape2)
-if(!require(youtubecaption)){install.packages('youtubecaption')}
-library(youtubecaption)
-if(!require(textrecipes)){install.packages('textrecipes')}
-library(textrecipes)
-if(!require(stopwords)){install.packages('stopwords')}
-library(stopwords)
-if(!require(hardhat)){install.packages('hardhat')}
-library(hardhat)
-if(!require(poissonreg)){install.packages('poissonreg')}
-library(poissonreg)
-if(!require(remotes)){install.packages('remotes')}
-library(remotes)
-# remotes::install_github('jorvlan/raincloudplots')
-library(raincloudplots)
-if(!require(DescTools)){install.packages('DescTools')}
-library(DescTools)
-if(!require(readxl)){install.packages('readxl')}
-library(readxl)
-if(!require(modeest)){install.packages('modeest')}
-library(modeest)
 if(!require(psych)){install.packages('psych')}
 library(psych)
-# install_local("DTVEM_1.0010.tar.gz") # http://www.nicholasjacobson.com/project/dtvem/
-library(DTVEM)
-# Loading DTVEM dependencies
-if(!require(mgcv)){install.packages('mgcv')}
-library(mgcv)
-if(!require(zoo)){install.packages('zoo')}
-library(zoo)
-if(!require(OpenMx)){install.packages('OpenMx')}
-library(OpenMx)
 if(!require(imputeTS)){install.packages('imputeTS')}
 library(imputeTS)
-if(!require(rlang)){install.packages('rlang')}
-library(rlang)
-if(!require(RANN)){install.packages('RANN')}
-library(RANN)
-if(!require(baguette)){install.packages('baguette')}
-library(baguette)
-if(!require(rules)){install.packages('rules')}
-library(rules)
 if(!require(timetk)){install.packages('timetk')}
 library(timetk)
 if(!require(tidyquant)){install.packages('tidyquant')}
