@@ -151,9 +151,8 @@ ema_data_init <- read_csv("cleaned_lifepak_ttt_phase_1.csv") %>%
 # check to see if anyone doesn't have enough data to even approximate a series
 
 too_few_sessions <- ema_data_init %>% 
-  group_by(lifepak_id) %>% 
-  count(completed_session) %>% 
-  filter(completed_session == 1 & n == 1) %>% 
+  count(lifepak_id) %>% 
+  filter(n <= 4) %>% 
   print()
 
 ## Let's keep everyone with at least half the days (we only lose one person this way)
@@ -164,15 +163,14 @@ ema_data_sec <- ema_data_init %>%
 # Confirm they've been dropped
 
 ema_data_sec %>% 
-  group_by(lifepak_id) %>% 
-  count(completed_session) %>% 
-  filter(completed_session == 1 & n == 1)
+  count(lifepak_id) %>% 
+  filter(n <= 4)
 
 ```
 
 ```{r}
 
-## does anyone have more than 4 observations for any given day?
+## does anyone have more than 5 observations for any given day?
 too_many_obs <- ema_data_sec %>% 
   mutate(day = day(notification_time)) %>% 
   count(lifepak_id, day) %>% 
@@ -180,7 +178,7 @@ too_many_obs <- ema_data_sec %>%
 
 ## Taking the first response of the two in this case (You could average, but only accepting the first one as valid seems more in line with the data generating process for the other responses, though that's a subjective call)
 
-ema_data <- ema_data_sec %>% 
+ema_data_extra <- ema_data_sec %>% 
   mutate(day = day(notification_time)) %>%
   group_by(lifepak_id, day) %>%
   mutate(row = row_number()) %>% 
@@ -188,12 +186,25 @@ ema_data <- ema_data_sec %>%
   dplyr::select(-row) %>% 
   ungroup()
 
-# Confirming the later row was dropped for that participant and no one else has more than 4 observations in a day
+# Confirming the later row was dropped for that participant and no one else has more than 5 observations in a day
 
-ema_data %>% 
+ema_data_extra %>% 
   count(lifepak_id, day) %>% 
   filter(n > 5)
   
+```
+
+```{r}
+
+cdi_data_init <- ema_data_extra %>% 
+  left_join(pre_post_data %>% select(yb_life_pak_id, sum_yb_cdi, sum_y3m_cdi), by = c("lifepak_id" = "yb_life_pak_id")) %>% 
+  mutate(lifepak_id_int = as.integer(lifepak_id))
+
+cdi_data_init %>% 
+  count(lifepak_id)
+
+cdi_data_init %>% 
+  filter(lifepak_id_int == 155884)
 ```
 
 ```{r creating ema data with outcome data}
