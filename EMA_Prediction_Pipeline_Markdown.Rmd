@@ -112,6 +112,12 @@ if(!require(embed)){install.packages('embed')}
 library(embed)
 if(!require(lubridate)){install.packages('lubridate')}
 library(lubridate)
+if(!require(ggdist)){install.packages('ggdist')}
+library(ggdist)
+if(!require(gt)){install.packages('gt')}
+library(gt)
+if(!require(broom)){install.packages('broom')}
+library(broom)
 
 ## Let's set our number of cores for this document (May differ across computers)
 
@@ -194,18 +200,141 @@ ema_data_extra %>%
   
 ```
 
+# Joining Youth Pre/3 Month CDI to LifePak Data 
+
 ```{r}
 
 cdi_data_init <- ema_data_extra %>% 
   left_join(pre_post_data %>% select(yb_life_pak_id, sum_yb_cdi, sum_y3m_cdi), by = c("lifepak_id" = "yb_life_pak_id")) %>% 
   mutate(lifepak_id_int = as.integer(lifepak_id))
 
-cdi_data_init %>% 
-  count(lifepak_id)
+```
+# Looking at How Frequently Sessions Were Completed
+
+```{r}
 
 cdi_data_init %>% 
-  filter(lifepak_id_int == 155884)
+  group_by(lifepak_id) %>% 
+  count(completed_session) %>% 
+  filter(completed_session == 1) %>% 
+  ungroup() %>% 
+  summarize(avg_completed = mean(n), sd_completed = sd(n))
+
 ```
+# Descriptive Statistics Grouped by Person
+
+```{r}
+
+# cdi_data_init %>% 
+#   group_by(lifepak_id) %>% 
+#   summarize(mean = mean(bad, na.rm = TRUE), sd = sd(bad, na.rm = TRUE)) %>% 
+#   mutate(sd_range = if_else(sd < 15, "SD < 15", "SD > 15")) %>% 
+#   ggplot(aes(x = lifepak_id, ydist = "norm", arg1 = mean, arg2 = sd)) +
+#   stat_halfeye(position = "dodge") +
+#   theme_minimal() +
+#   theme(axis.text.x = element_blank()) +
+#   ylim(0, 100) +
+#   facet_wrap(~sd_range)
+  
+
+```
+
+```{r}
+
+# cdi_data_init %>% 
+#   group_by(lifepak_id) %>% 
+#   summarize(mean = mean(bad, na.rm = TRUE), sd = sd(bad, na.rm = TRUE)) %>% 
+#   mutate(sd_range = case_when(
+#     sd < 10 ~ "SD < 10", 
+#     sd >= 10 & sd < 20 ~"20 > SD > 10",
+#     sd >= 20 ~ "SD > 20"
+#     )
+# ) %>% 
+#   ggplot(aes(x = lifepak_id, ydist = distributional::dist_normal(mean, sd))) +
+#   stat_halfeye(position = "dodge") +
+#   theme_minimal() +
+#   theme(axis.text.x = element_blank()) +
+#   ylim(0, 100) +
+#   facet_wrap(~sd_range)
+
+```
+## Plotting Raw Data for Bad by Participant
+
+```{r}
+
+cdi_data_init %>% 
+  ggplot(aes(x = bad, color = bad)) +
+  geom_dots(alpha = 0.6) +
+  scale_color_distiller(type = "seq",
+                        direction = -1,
+                        palette = "Greys") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title.position = "plot",
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank()) +
+  facet_wrap(~lifepak_id) +
+  labs(title = "Distribution of 'Bad' EMA Ratings Grouped by Participant",
+    subtitle = "Minimum Value is 0 and Maximum Value is 100",
+    x = "Bad")
+
+ggsave('bad_distribution.jpg')
+
+```
+
+## Creating Table of Summary Statistics for Bad by Participant
+
+```{r}
+
+cdi_data_init %>% 
+   group_by(lifepak_id) %>% 
+   summarize(
+     across(
+       c(bad,control:movement, sad),
+       list(mean = "mean", sd = "sd"),
+       na.rm = TRUE,
+       .names = "{.col}_{.fn}"
+     )
+   ) %>% 
+  gt(rowname_col = "lifepak_id") %>% 
+  tab_stubhead(label = "ID") %>% 
+  fmt_number(columns = where(is.numeric),
+             decimals = 2) %>% 
+  cols_label(bad_mean = "Mean",
+             bad_sd = "SD",
+             control_mean = "Mean",
+             control_sd = "SD",
+             energy_mean = "Mean",
+             energy_sd = "SD",
+             focus_mean = "Mean",
+             focus_sd = "SD",
+             fun_mean = "Mean",
+             fun_sd = "SD",
+             interest_mean = "Mean",
+             interest_sd = "SD",
+             movement_mean = "Mean",
+             movement_sd = "SD",
+             sad_mean = "Mean",
+             sad_sd = "SD") %>% 
+  tab_spanner(label = "Bad",
+              columns = c(bad_mean, bad_sd)) %>% 
+  tab_spanner(label = "Control",
+              columns = c(control_mean, control_sd)) %>% 
+  tab_spanner(label = "Energy",
+              columns = c(energy_mean, energy_sd)) %>% 
+  tab_spanner(label = "Focus",
+              columns = c(focus_mean, focus_sd)) %>% 
+  tab_spanner(label = "Fun",
+              columns = c(fun_mean, fun_sd)) %>% 
+  tab_spanner(label = "Interest",
+              columns = c(interest_mean, interest_sd)) %>% 
+  tab_spanner(label = "Movement",
+              columns = c(movement_mean, movement_sd)) %>% 
+  tab_spanner(label = "Sad",
+              columns = c(sad_mean, sad_sd))
+
+```
+
 
 ```{r creating ema data with outcome data}
 ## Creating outcomes for whether depression and/or anxiety clinically
