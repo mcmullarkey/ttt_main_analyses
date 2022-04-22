@@ -43,8 +43,10 @@ use_condaenv("ttt-reticulate-yml")
 
 py_config()
 
-library(tensorflow)
-tensorflow::install_tensorflow(method = "conda")
+# To use for embed package, though mgiht not be necessary
+
+# library(tensorflow)
+# tensorflow::install_tensorflow(method = "conda")
 
 
 ```
@@ -106,10 +108,10 @@ if(!require(diffdf)){install.packages('diffdf')}
 library(diffdf)
 if(!require(tensorflow)){install.packages('tensorflow')}
 library(tensorflow)
-if(!require(keras)){install.packages('keras')}
-library(keras)
-if(!require(embed)){install.packages('embed')}
-library(embed)
+# if(!require(keras)){install.packages('keras')}
+# library(keras)
+# if(!require(embed)){install.packages('embed')}
+# library(embed)
 if(!require(lubridate)){install.packages('lubridate')}
 library(lubridate)
 if(!require(ggdist)){install.packages('ggdist')}
@@ -206,7 +208,8 @@ ema_data_extra %>%
 
 cdi_data_init <- ema_data_extra %>% 
   left_join(pre_post_data %>% select(yb_life_pak_id, sum_yb_cdi, sum_y3m_cdi), by = c("lifepak_id" = "yb_life_pak_id")) %>% 
-  mutate(lifepak_id_int = as.integer(lifepak_id))
+  mutate(lifepak_id_int = as.integer(lifepak_id),
+         yb_dep_diff = sum_y3m_cdi -sum_yb_cdi)
 
 ```
 # Looking at How Frequently Sessions Were Completed
@@ -339,106 +342,61 @@ cdi_data_init %>%
 
 ```
 
-
-```{r creating ema data with outcome data}
-## Creating outcomes for whether depression and/or anxiety clinically
-## significantly deteriorated over the course of the study
-depress_items <- c(3, 5, 10, 13, 16, 17, 21)
-b_dass_depress <- paste("pre", depress_items, sep = "")
-f_dass_depress <- paste("post", depress_items, sep = "")
-anx_items <- c(2, 4, 7, 15, 19, 20)
-b_dass_anx <- paste("pre", anx_items, sep = "")
-f_dass_anx <- paste("post", anx_items, sep = "")
-dass_means <- map_dfc(
-  list(b_dass_depress = b_dass_depress,
-       f_dass_depress = f_dass_depress,
-       b_dass_anx = b_dass_anx,
-       f_dass_anx = f_dass_anx),
-  ~ rowMeans(pre_post_data[.x], na.rm = TRUE)
-) 
-dep_outcome <- tibble(
-  id = pre_post_data$id,
-  dep_deteriorate = with(dass_means, f_dass_depress - b_dass_depress > 0.55)
-) %>% filter(!is.na(dep_deteriorate))
-anx_outcome <- tibble(
-  id = pre_post_data$id,
-  anx_deteriorate = with(dass_means, f_dass_anx - b_dass_anx > 0.64)
-) %>% filter(!is.na(anx_deteriorate))
-ema_data_with_dep_outcome <- inner_join(dep_outcome, ema_data, by = "id") 
-ema_data_with_anx_outcome <- inner_join(anx_outcome, ema_data, by = "id") 
-## Seeing what % of folks deteriorated a clinically significant amount
-full_join(dep_outcome, anx_outcome, by = "id") %>%
-  filter(id %in% ema_data$id) %>%
-  summarize_if(is.logical, mean) %>%
-  mutate_all(round, 2)
-```
-
-```{r adding a time variable to ema data to allow for later feature engineering}
-
-# Have to create a Time (in my case, 'time') variable where we sequence
-# within each id from 1 to however many responses you give
-
-# Creating the time variable + the id in integer form since the DTVEM
-# functions crash if ID is a character value
-
-ema_data_with_dep_outcome_num_resp <- ema_data_with_dep_outcome %>% 
-  group_by(id) %>% 
-  mutate(time = 1:n()) %>% 
-  ungroup() %>% 
-  mutate(id_int = as.integer(factor(id)))
-```
-
 ```{r nesting the ema data for wide format and rsample breaking things up into training and testing}
 
 ## Nesting the data so the ema data can be included within a wide format (Helps us break up into training/testing + create custom recipe steps)
 
-nested_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
-  group_by(id, dep_deteriorate) %>%
+nested_ema_data <- cdi_data_init %>% 
+  group_by(lifepak_id, yb_dep_diff) %>%
   nest() %>% 
+  filter(!is.na(yb_dep_diff)) %>% 
   dplyr::rename(ema_data = data)
 
 ## Break into training/testing data
 
 set.seed(33)
 # Put 1/2 of the data into the training set, stratify based on the ts_diff outcome 
-nested_ema_data_split <- initial_split(nested_ema_data, prop = 1/2, strata = dep_deteriorate)
+nested_ema_split <- initial_split(nested_ema_data, prop = 4/5, strata = yb_dep_diff)
 
 # Create data frames for the two sets:
-train_nested_ema_data <- training(nested_ema_data_split)
-test_nested_ema_data  <- testing(nested_ema_data_split)
+train_nested_ema <- training(nested_ema_split)
+test_nested_ema  <- testing(nested_ema_split)
 
 ```
 
 ```{r creating long form training and testing data}
 
-train_long_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
-  dplyr::select(contains("id"), contains("_1"), contains("_2"),contains("dep"),contains("time")) %>% 
-  filter(id %in% train_nested_ema_data$id) %>% 
-  dplyr::select(-id) %>% 
-  group_by(id_int) %>% 
-  complete(time = 1:56) %>%
+train_long_ema <- cdi_data_init %>% 
+  dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
+  filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
+  dplyr::select(-lifepak_id) %>% 
+  group_by(lifepak_id_int) %>% 
+  complete(response_no = 1:107) %>%
   dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
-  )) %>%
+  ),
+  response_no = as.integer(response_no)) %>%
   ungroup() %>% 
   print()
 
-train_long_ema_data_ts_fresh <- train_long_ema_data %>% 
-  dplyr::select(-contains("dep"))
+# train_long_ema_data_ts_fresh <- train_long_ema %>% 
+#   dplyr::select(-contains("dep"))
 
-train_outcome_wide <- train_nested_ema_data %>% 
+train_outcome_wide <- train_nested_ema %>% 
   unnest() %>% 
-  distinct(id, .keep_all = T) %>% 
+  distinct(lifepak_id, .keep_all = T) %>% 
   ungroup() %>% 
-  dplyr::select(contains("dep"))
+  dplyr::select(yb_dep_diff)
 
-test_long_ema_data <- ema_data_with_dep_outcome_num_resp %>% 
-  dplyr::select(id, contains("_1"), contains("_2"),contains("time")) %>% 
-  filter(id %in% test_nested_ema_data$id) %>% 
-  group_by(id) %>% 
-  complete(time = 1:56) %>% 
+test_long_ema <- cdi_data_init %>% 
+  dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
+  filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
+  dplyr::select(-lifepak_id) %>% 
+  group_by(lifepak_id_int) %>% 
+  complete(response_no = 1:107) %>%
   dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
-  )) %>% 
-  ungroup() %>%
+  ),
+  response_no = as.integer(response_no)) %>%
+  ungroup() %>% 
   print()
 
 ## Creating the number of cores to use in parallel for tsfresh (Only using physical cores with logical = FALSE)
@@ -456,8 +414,7 @@ cores <- detectCores(logical = FALSE) - 1L
 
 ## Example from the docs works https://tsfresh.readthedocs.io/en/latest/text/quick_start.html
 
-from tsfresh.examples.robot_execution_failures import download_robot_execution_failures, \
-    load_robot_execution_failures
+from tsfresh.examples.robot_execution_failures import download_robot_execution_failures,load_robot_execution_failures
 download_robot_execution_failures()
 timeseries, y = load_robot_execution_failures()
 
@@ -472,15 +429,15 @@ extracted_features = extract_features(timeseries, column_id="id", column_sort="t
 
 ## Trying to apply that to our data
 
-print(r.train_long_ema_data) # Looks similar as the timeseries data
+print(r.train_long_ema) # Looks similar as the timeseries data
 
-type(r.train_long_ema_data) # Has same type as timeseries
+type(r.train_long_ema) # Has same type as timeseries
 
-r.train_long_ema_data.dtypes # If we read in this data with the depression outcome as a boolean (which shouldn't be in the data at all) tsfresh won't work
+r.train_long_ema.dtypes # If we read in this data with the depression outcome as a boolean (which shouldn't be in the data at all) tsfresh won't work
 
-r.train_long_ema_data_ts_fresh.dtypes # So we read in the updated data without the depression outcome as boolean
+r.train_long_ema.dtypes # So we read in the updated data without the depression outcome as boolean
 
-extracted_features_r = extract_features(r.train_long_ema_data_ts_fresh, column_id="id_int", column_sort="time")
+extracted_features_r = extract_features(r.train_long_ema, column_id="lifepak_id_int", column_sort="response_no")
 
 ```
 
@@ -503,9 +460,9 @@ toc()
 
 glimpse(ts_fresh_features) 
 
-ts_fresh_features_with_id <- ts_fresh_features %>% 
-  bind_cols(train_nested_ema_data %>% ungroup() %>% dplyr::select(id)) %>% 
-  relocate(id, everything())
+ts_fresh_id <- ts_fresh_features %>% 
+  bind_cols(train_nested_ema %>% ungroup() %>% dplyr::select(lifepak_id)) %>% 
+  relocate(lifepak_id, everything())
   
 
 ```

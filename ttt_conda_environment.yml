@@ -32,7 +32,7 @@ dependencies:
       - pyjanitor==0.20.14
 
       # Modeling & Machine Learning
-      - statsmodels
+      - statsmodels==0.12.1
       - nltk==3.5
       - h2o==3.32.0.3
       - pycaret==2.3.0
