@@ -260,6 +260,8 @@ cdi_data_init %>%
 ```
 ## Plotting Raw Data for Bad by Participant
 
+We can use this as a figure in the main text to illustrate how the distributions are different across participants.
+
 ```{r}
 
 cdi_data_init %>% 
@@ -282,7 +284,9 @@ ggsave('bad_distribution.jpg')
 
 ```
 
-## Creating Table of Summary Statistics for Bad by Participant
+## Creating Table of Summary Statistics for EMA Data by Participant
+
+This table can be part of the supplement.
 
 ```{r}
 
