@@ -559,7 +559,7 @@ lags_id_only <- train_nested_ema %>%
 # Now the function
 
 tic()
-train_data_with_dtw_stats <-cdi_data_init %>% 
+train_dtw_stats <-cdi_data_init %>% 
   dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
   filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
   dplyr::select(-lifepak_id) %>% 
@@ -593,35 +593,30 @@ toc()
 ## Merge tsfresh with dynamic time warp features
 
 tic()
-train_data_preprocessing <- ts_fresh_features_with_id %>% 
-  left_join(train_data_with_dtw_stats, by = "id") %>%
-  dplyr::select(-dep_deteriorate) %>% 
-  # left_join(train_data_with_weekday_weekend_initial_features, by = "id_ema") %>%
+train_data_preprocess <- ts_fresh_id %>% 
+  left_join(train_dtw_stats, by = "lifepak_id") %>%
   mutate(across(everything(), ~ifelse(is.nan(.x), NA, .x))) %>% 
   mutate(across(everything(), ~ifelse(is.infinite(.x), NA, .x))) %>% 
-  bind_cols(train_outcome_wide) %>% 
-  mutate(dep_deteriorate = as.factor(dep_deteriorate))
+  bind_cols(train_outcome_wide)
 toc()
-
-train_data_preprocessing$dep_deteriorate
 
 ## Using prep and bake with recipes to preprocess data (Getting rid of near zero variance features, normalizing all variables (necessary preprocessing for the neural network autoencoder), and using K nearest neighbors to impute missing predictor data
 
 ## Maybe add a Box_Cox Step? Should visualize skew/non skew of predictors before and after to check
 
-rec_ema_for_autoencoder <- 
-  recipes::recipe(dep_deteriorate~ ., data = train_data_preprocessing) %>% 
-  update_role(id, new_role = "id") %>% 
+rec_ema <- 
+  recipes::recipe(yb_dep_diff~ ., data = train_data_preprocess) %>% 
+  update_role(lifepak_id, new_role = "id") %>% 
   step_nzv(all_predictors()) %>%
   step_normalize(all_predictors()) %>%
-  step_knnimpute(all_predictors()) %>% 
+  step_impute_knn(all_predictors()) %>% 
   step_BoxCox(all_predictors())
 
 tic()
 set.seed(33)
-train_data_with_summ_stats_imp_nzv <- rec_ema_for_autoencoder %>% 
+train_imp_nzv <- rec_ema %>% 
   prep(verbose = TRUE) %>% 
-  bake(new_data = train_data_preprocessing)
+  bake(new_data = train_data_preprocess)
 toc()
 
 ```
