@@ -609,8 +609,7 @@ rec_ema <-
   update_role(lifepak_id, new_role = "id") %>% 
   step_nzv(all_predictors()) %>%
   step_normalize(all_predictors()) %>%
-  step_impute_knn(all_predictors()) %>% 
-  step_BoxCox(all_predictors())
+  step_impute_knn(all_predictors())
 
 tic()
 set.seed(33)
