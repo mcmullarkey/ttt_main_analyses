@@ -476,7 +476,7 @@ ts_fresh_id <- ts_fresh_features %>%
 tidy_imputation <- function(.data){
 
   tidyverse_lags_test <- .data %>%
-  dplyr::select(-c(beepvar, id_int)) %>%
+  dplyr::select(-c(response_no, lifepak_id_int)) %>%
   dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
   ))
 
@@ -490,17 +490,17 @@ tidy_imputation <- function(.data){
 creating_dtw_distances <- function(.data){
 
   row_names <- .data %>% 
-    dplyr::select(-id) %>% 
+    dplyr::select(-lifepak_id_int) %>% 
     names()
   column_names <- .data %>% 
-    dplyr::select(-id) %>% 
+    dplyr::select(-lifepak_id_int) %>% 
     names()
   
-  distance <- parDist(.data %>% dplyr::select(-id) %>%  as.matrix(), method = "dtw", 
+  distance <- parDist(.data %>% dplyr::select(-lifepak_id_int) %>%  as.matrix(), method = "dtw", 
     window.type = "sakoechiba", window.size = 2, step.pattern = "symmetricP0")
   
   distance <- as.matrix(distance)
-  distance <- distance[c(1:18),c(1:18)]
+  distance <- distance[c(1:8),c(1:8)]
   
   colnames(distance) <- column_names
   
@@ -526,7 +526,7 @@ pivoting_dtw_results_wider <- function(.data){
   as_tibble() %>% 
   pivot_wider(
     names_from = var_names,
-    values_from = c(stress_1:time_at_home)
+    values_from = c(bad:sad)
   )
 }
 
@@ -534,48 +534,57 @@ pivoting_dtw_results_wider <- function(.data){
 
 exclude_dtw_same_var_features <- function(.data){
   
-  ready_for_dup_name <- ema_data_with_dep_outcome_num_resp %>% 
-    dplyr::select(-c(time, beepvar, id_int)) %>%
+  ready_for_dup_name <- .data %>% 
     dplyr::select(where(is.numeric)) %>% 
     names()
+
+dupe_df <- enframe(ready_for_dup_name) %>% 
+  mutate(first = word(value, 1, sep = "_"),
+         second = word(value, -1, sep = "_")) %>% 
+  filter(first == second)
   
-  col_names_dup <- glue("{ready_for_dup_name}_{ready_for_dup_name}")
+  col_names_dup <- glue("{dupe_df$first}_{dupe_df$first}")
 
  .data <- .data %>%
-  dplyr::select(-col_names_dup)
+  dplyr::select(-all_of(col_names_dup))
 }
 
 ## Do it once, but then accidentally do the whole thing
 
 # Have to create id only column data frame to bind back with this function at the end
 
-tidyverse_lags_id_only <- train_nested_ema_data %>% 
-  dplyr::select(-ema_data, -contains("dep"))
+lags_id_only <- train_nested_ema %>% 
+  dplyr::select(-ema_data, -contains("yb"))
 
 # Now the function
 
 tic()
-train_data_with_dtw_stats <- ema_data_with_dep_outcome_num_resp %>%
-  filter(id %in% train_nested_ema_data$id) %>% 
-  group_by(id) %>% 
-  complete(time = 1:56) %>% # Needed to make sure each person has the same number of timepoints https://aosmith.rbind.io/2018/06/27/uneven-grouped-autocorrelation/#problems-with-naively-using-acf
+train_data_with_dtw_stats <-cdi_data_init %>% 
+  dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
+  filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
+  dplyr::select(-lifepak_id) %>% 
+  group_by(lifepak_id_int) %>% 
+  complete(response_no = 1:107) %>%
+  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  ),
+  response_no = as.integer(response_no)) %>%
   ungroup() %>% 
-  as_tsibble(key = id, index = time) %>% 
-  group_by(id) %>% 
+  as_tsibble(key = lifepak_id_int, index = response_no) %>% 
+  group_by(lifepak_id_int) %>% 
   tidy_imputation() %>% 
   dplyr::select(where(is.numeric)) %>% 
   ungroup() %>%
   as_tibble() %>% 
-  dplyr::select(-time) %>% 
-  group_split(id) %>% 
+  dplyr::select(-response_no) %>% 
+  group_split(lifepak_id_int) %>% 
   map(creating_dtw_distances) %>%
   map_dfr(pivoting_dtw_results_wider) %>% 
+  bind_cols(lags_id_only) %>% 
+  ungroup() %>% 
   exclude_dtw_same_var_features() %>% 
-  bind_cols(tidyverse_lags_id_only) %>% 
-  relocate(id, contains("dass"), everything()) %>% 
-  dplyr::select(-contains("dass"))
+  relocate(lifepak_id, everything()) %>% 
+  dplyr::select(-starts_with("yb_dep_diff"))
 toc()
-
 
 ```
 
