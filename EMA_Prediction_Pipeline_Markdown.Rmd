@@ -679,7 +679,7 @@ base_model_wfs <- map(base_model_rec_list, ~{
 
 # Create as list of dataframes we'll be using to fit these models
 
-base_model_data_list <- list(train_imp_nzv, train_imp_nzv, train_imp_nzv)
+base_model_data_list <- list(train_imp_nzv, train_imp_nzv)
 
 # Fitting each model once to make sure they run, and they do
 
@@ -703,7 +703,7 @@ base_model_fit_all_rs <- map2(base_model_wfs, base_model_data_list, ~{
 registerDoMC(cores = 7)
 
 set.seed(33)
-folds_ema_pred <- vfold_cv(.y, v = 4, repeats = 10, strata = dep_deteriorate)
+folds_ema_pred <- vfold_cv(.y, v = 4, repeats = 10, strata = yb_dep_diff)
 
 ## Run the CV models here
 keep_pred <- control_resamples(save_pred = TRUE)
@@ -720,24 +720,23 @@ rf_fit_rs
 
 ## Saving the predictions/actual differences here
 
-base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
+base_model_metrics_all_rs <- map(base_model_fit_all_rs, ~{
   
-  auc <- .x %>% 
-  collect_predictions(summarize = TRUE) %>% 
-  roc_auc(truth = dep_deteriorate, .estimate = .pred_TRUE)
+  rsq_metric <- .x %>% 
+  collect_metrics(summarize = TRUE)
 
 }) %>% 
   print()
 
-base_model_plots_all_rs <- map(base_model_fit_all_rs, ~{
-  
-  auc <- .x %>% 
-  collect_predictions(summarize = TRUE) %>% 
-  roc_curve(truth = dep_deteriorate, .estimate = .pred_TRUE) %>% 
-  autoplot()
-
-}) %>% 
-  print()
+# base_model_plots_all_rs <- map(base_model_fit_all_rs, ~{
+#   
+#   auc <- .x %>% 
+#   collect_predictions(summarize = TRUE) %>% 
+#   roc_curve(truth = dep_deteriorate, .estimate = .pred_TRUE) %>% 
+#   autoplot()
+# 
+# }) %>% 
+#   print()
 
 ```
 
