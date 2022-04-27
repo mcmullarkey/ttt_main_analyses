@@ -718,12 +718,22 @@ rf_fit_rs
 } 
 )
 
-## Saving the predictions/actual differences here
+## Get metrics here
 
 base_model_metrics_all_rs <- map(base_model_fit_all_rs, ~{
   
   rsq_metric <- .x %>% 
   collect_metrics(summarize = TRUE)
+
+}) %>% 
+  print()
+
+## Saving the predictions/actual differences here
+
+base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
+  
+  rsq_metric <- .x %>% 
+  collect_predictions(summarize = TRUE)
 
 }) %>% 
   print()
