@@ -106,8 +106,8 @@ if(!require(pheatmap)){install.packages('pheatmap')}
 library(pheatmap)
 if(!require(diffdf)){install.packages('diffdf')}
 library(diffdf)
-if(!require(tensorflow)){install.packages('tensorflow')}
-library(tensorflow)
+# if(!require(tensorflow)){install.packages('tensorflow')}
+# library(tensorflow)
 # if(!require(keras)){install.packages('keras')}
 # library(keras)
 # if(!require(embed)){install.packages('embed')}
@@ -268,7 +268,7 @@ We can use this as a figure in the main text to illustrate how the distributions
 ```{r}
 
 cdi_data_init %>% 
-  ggplot(aes(x = bad, color = bad)) +
+  ggplot(aes(x = sad, color = sad)) +
   geom_dots(alpha = 0.6) +
   scale_color_distiller(type = "seq",
                         direction = -1,
@@ -279,11 +279,11 @@ cdi_data_init %>%
         axis.text.y = element_blank(),
         axis.text.x = element_blank()) +
   facet_wrap(~lifepak_id) +
-  labs(title = "Distribution of 'Bad' EMA Ratings Grouped by Participant",
-    subtitle = "Minimum Value is 0 and Maximum Value is 100",
-    x = "Bad")
+  labs(title = "Distributions of 'Sad' EMA Ratings Grouped by Participant",
+    subtitle = "Minimum X-Axis Value is 0 and Maximum X-Axis Value is 100",
+    x = "")
 
-ggsave('bad_distribution.jpg')
+ggsave('sad_distribution.jpg')
 
 ```
 
@@ -414,18 +414,18 @@ cores <- detectCores(logical = FALSE) - 1L
 
 ## Example from the docs works https://tsfresh.readthedocs.io/en/latest/text/quick_start.html
 
-from tsfresh.examples.robot_execution_failures import download_robot_execution_failures,load_robot_execution_failures
-download_robot_execution_failures()
-timeseries, y = load_robot_execution_failures()
-
-print(timeseries)
-
-type(timeseries)
-
-timeseries.dtypes
-
+# from tsfresh.examples.robot_execution_failures import download_robot_execution_failures,load_robot_execution_failures
+# download_robot_execution_failures()
+# timeseries, y = load_robot_execution_failures()
+# 
+# print(timeseries)
+# 
+# type(timeseries)
+# 
+# timeseries.dtypes
+# 
 from tsfresh import extract_features
-extracted_features = extract_features(timeseries, column_id="id", column_sort="time")
+# extracted_features = extract_features(timeseries, column_id="id", column_sort="time")
 
 ## Trying to apply that to our data
 
@@ -625,9 +625,9 @@ toc()
 ## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
 
 rec_ema_pca <- 
-  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-  update_role(id, new_role = "id") %>% 
-  step_pca(all_predictors(), num_comp = 25)
+  recipes::recipe(yb_dep_diff ~ ., data = train_imp_nzv) %>% 
+  update_role(lifepak_id, new_role = "id") %>% 
+  step_pca(all_predictors(), threshold = 0.95)
 
 ## Could also work on making threshold tunable
 
@@ -637,9 +637,9 @@ rec_ema_pca <-
 
 ## Recipes don't like list columns, but I may be able to hack around it https://github.com/tidymodels/recipes/issues/402
 
-rec_ema_raw_pred <- 
-  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-  update_role(id, new_role = "id")
+rec_ema_raw <- 
+  recipes::recipe(yb_dep_diff ~ ., data = train_imp_nzv) %>% 
+  update_role(lifepak_id, new_role = "id")
 
 ```
 
@@ -647,10 +647,10 @@ rec_ema_raw_pred <-
 
 ## This is supervised, non-linear dimensionality reduction without needing to use an autoencoder
 
-rec_ema_umap <- 
-  recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-  update_role(id, new_role = "id") %>% 
-  step_umap(all_predictors(), outcome = vars(dep_deteriorate), num_comp = 5)
+# rec_ema_umap <- 
+#   recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
+#   update_role(id, new_role = "id") %>% 
+#   step_umap(all_predictors(), outcome = vars(dep_deteriorate), num_comp = 5)
 
 ```
 
@@ -661,11 +661,11 @@ rec_ema_umap <-
 
 rf_mod <- rand_forest() %>% 
   set_engine("ranger") %>% 
-  set_mode("classification")
+  set_mode("regression")
 
 # Create a list of preprocessing recipes
 
-base_model_rec_list <- list(rec_ema_umap, rec_ema_pca, rec_ema_raw_pred)
+base_model_rec_list <- list(rec_ema_pca, rec_ema_raw)
 
 # Combining each recipe into a tidymodels workflows using a map function
 
@@ -679,7 +679,7 @@ base_model_wfs <- map(base_model_rec_list, ~{
 
 # Create as list of dataframes we'll be using to fit these models
 
-base_model_data_list <- list(train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv, train_data_with_summ_stats_imp_nzv)
+base_model_data_list <- list(train_imp_nzv, train_imp_nzv, train_imp_nzv)
 
 # Fitting each model once to make sure they run, and they do
 
