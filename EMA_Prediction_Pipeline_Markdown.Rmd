@@ -122,6 +122,8 @@ if(!require(broom)){install.packages('broom')}
 library(broom)
 if(!require(glmnet)){install.packages('glmnet')}
 library(glmnet)
+if(!require(xgboost)){install.packages('xgboost')}
+library(xgboost)
 
 ## Let's set our number of cores for this document (May differ across computers)
 
@@ -665,7 +667,7 @@ rf_mod <- rand_forest() %>%
   set_engine("ranger") %>% 
   set_mode("regression")
 
-elnet_mod <- linear_reg() %>% 
+elnet_mod <- linear_reg(penalty = 0.99, mixture = 0.99) %>% 
   set_engine("glmnet")
 
 xg_mod <- boost_tree() %>% 
