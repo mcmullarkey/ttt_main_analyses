@@ -120,6 +120,8 @@ if(!require(gt)){install.packages('gt')}
 library(gt)
 if(!require(broom)){install.packages('broom')}
 library(broom)
+if(!require(glmnet)){install.packages('glmnet')}
+library(glmnet)
 
 ## Let's set our number of cores for this document (May differ across computers)
 
@@ -663,23 +665,38 @@ rf_mod <- rand_forest() %>%
   set_engine("ranger") %>% 
   set_mode("regression")
 
+elnet_mod <- linear_reg() %>% 
+  set_engine("glmnet")
+
+xg_mod <- boost_tree() %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+
 # Create a list of preprocessing recipes
 
 base_model_rec_list <- list(rec_ema_pca, rec_ema_raw)
 
+# Create a list of models
+
+base_model_mod_list <- list(rf_mod, elnet_mod, xg_mod)
+
+# Create data frame that matches all possible combinations of recipes and models
+
+rec_mods_df <- expand_grid(base_model_rec_list, base_model_mod_list) 
+
 # Combining each recipe into a tidymodels workflows using a map function
 
-base_model_wfs <- map(base_model_rec_list, ~{
+base_model_wfs <- map2(rec_mods_df$base_model_rec_list, rec_mods_df$base_model_mod_list, ~{
   
   ema_autoencoder_rf_wf <- workflow() %>% 
   add_recipe(.x) %>% 
-  add_model(rf_mod)
+  add_model(.y)
 }
 )
 
 # Create as list of dataframes we'll be using to fit these models
 
-base_model_data_list <- list(train_imp_nzv, train_imp_nzv)
+base_model_data_list <- list(train_imp_nzv, train_imp_nzv, train_imp_nzv, train_imp_nzv, train_imp_nzv, train_imp_nzv)
 
 # Fitting each model once to make sure they run, and they do
 
