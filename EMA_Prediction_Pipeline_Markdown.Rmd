@@ -138,7 +138,8 @@ registerDoMC(cores = 7)
 ## Reading in pre/post data for the college students
 
 pre_post_data <- read_csv("cleaned_qualtrics_ttt_phase_1.csv") %>% 
-  clean_names()
+  clean_names() %>% 
+  mutate(yb_dep_diff = resid(lm(sum_y3m_cdi~sum_yb_cdi, data = cur_data(), na.action = na.exclude)))
 
 ```
 
@@ -211,9 +212,8 @@ ema_data_extra %>%
 ```{r}
 
 cdi_data_init <- ema_data_extra %>% 
-  left_join(pre_post_data %>% select(yb_life_pak_id, sum_yb_cdi, sum_y3m_cdi), by = c("lifepak_id" = "yb_life_pak_id")) %>% 
-  mutate(lifepak_id_int = as.integer(lifepak_id),
-         yb_dep_diff = sum_y3m_cdi -sum_yb_cdi)
+  left_join(pre_post_data %>% select(yb_life_pak_id, yb_dep_diff), by = c("lifepak_id" = "yb_life_pak_id")) %>% 
+  mutate(lifepak_id_int = as.integer(lifepak_id))
 
 ```
 # Looking at How Frequently Sessions Were Completed
@@ -768,6 +768,21 @@ base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
 #   print()
 
 ```
+
+# Plotting True Scores vs Predictions, Ideally Want Them All on the Same Line
+
+```{r}
+
+map(base_model_preds_all_rs, ~{
+  .x %>% 
+  ggplot(aes(x = yb_dep_diff, y = .pred)) +
+  geom_point() +
+  geom_abline(col = "dodgerblue1")
+}) 
+  
+
+```
+
 
 ## THE CODE CURRENTLY IN USE ENDS HERE
 
