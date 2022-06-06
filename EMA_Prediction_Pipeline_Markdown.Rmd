@@ -462,7 +462,7 @@ ts_fresh_features <- as_tibble(py$extracted_features_r) %>%
   select_if(not_all_zero)
 toc()
 
-glimpse(ts_fresh_features) 
+# glimpse(ts_fresh_features) 
 
 ts_fresh_id <- ts_fresh_features %>% 
   bind_cols(train_nested_ema %>% ungroup() %>% dplyr::select(lifepak_id)) %>% 
@@ -782,3 +782,76 @@ map(base_model_preds_all_rs, ~{
   
 
 ```
+
+# Can We Match the Accuracy of These Models with Data Just From Baseline?
+
+## Clean Into Training Data
+
+```{r}
+
+# Let's take the training data and bring back the baseline variables
+
+pre_for_mod <- train_nested_ema %>% 
+  ungroup() %>% 
+  select(-ema_data, -yb_dep_diff) %>% 
+  left_join(pre_post_data, by = c("lifepak_id" = "yb_life_pak_id")) %>% 
+  select(lifepak_id, yb_dep_diff, contains("mean")) %>% 
+  select(lifepak_id, yb_dep_diff, contains("yb"), -mean_yb_cdi, -mean_yb_idas) %>% 
+  print()
+
+
+```
+## Create Modeling Workflow
+
+```{r}
+
+# Create preprocessing recipe
+
+rec_pre <- 
+  recipes::recipe(yb_dep_diff~ ., data = pre_for_mod) %>% 
+  update_role(lifepak_id, new_role = "id") %>% 
+  step_nzv(all_predictors()) %>%
+  step_normalize(all_predictors()) %>%
+  step_impute_knn(all_predictors())
+
+# Test that doing the preprocessing won't crash anything
+
+tic()
+set.seed(33)
+train_imp_nzv <- rec_pre %>% 
+  prep(verbose = TRUE) %>% 
+  bake(new_data = pre_for_mod)
+toc()
+
+pre_rf_wf <- workflow() %>% 
+  add_recipe(rec_pre) %>% 
+  add_model(elnet_mod)
+
+```
+
+## Run Model Over Resamples
+
+```{r}
+
+registerDoMC(cores = 7)
+
+set.seed(33)
+folds_pre_pred <- vfold_cv(pre_for_mod, v = 4, repeats = 10, strata = yb_dep_diff)
+
+## Run the CV models here
+
+# Keep the predictions for plotting
+keep_pred <- control_resamples(save_pred = TRUE)
+
+tic()
+set.seed(33)
+pre_rf_rs <- 
+  pre_rf_wf %>% 
+  fit_resamples(folds_pre_pred, control = keep_pred)
+toc()
+
+pre_rf_rs %>% 
+  collect_metrics(summarize = TRUE)
+
+```
+
