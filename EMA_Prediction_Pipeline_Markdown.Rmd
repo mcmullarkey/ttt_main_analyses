@@ -855,3 +855,32 @@ pre_rf_rs %>%
 
 ```
 
+## Can We Reduce the Model Even Further?
+
+```{r}
+
+rec_pre_red <- 
+  recipes::recipe(yb_dep_diff~ lifepak_id + mean_yb_bads + mean_yb_bhs + mean_yb_drs + mean_yb_ucla, data = pre_for_mod) %>% 
+  update_role(lifepak_id, new_role = "id") %>% 
+  step_nzv(all_predictors()) %>%
+  step_normalize(all_predictors()) %>%
+  step_impute_knn(all_predictors())
+
+pre_red_wf <- workflow() %>% 
+  add_recipe(rec_pre_red) %>% 
+  add_model(elnet_mod)
+
+## Run the CV models here
+
+tic()
+set.seed(33)
+pre_red_rs <- 
+  pre_red_wf %>% 
+  fit_resamples(folds_pre_pred, control = keep_pred)
+toc()
+
+pre_red_rs %>% 
+  collect_metrics(summarize = TRUE)
+
+```
+
