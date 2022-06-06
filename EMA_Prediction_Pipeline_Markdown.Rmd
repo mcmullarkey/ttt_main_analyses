@@ -860,7 +860,7 @@ pre_rf_rs %>%
 ```{r}
 
 rec_pre_red <- 
-  recipes::recipe(yb_dep_diff~ lifepak_id + mean_yb_bads + mean_yb_bhs + mean_yb_drs + mean_yb_ucla, data = pre_for_mod) %>% 
+  recipes::recipe(yb_dep_diff~ lifepak_id + mean_yb_bads + mean_yb_bhs + mean_yb_ucla, data = pre_for_mod) %>% 
   update_role(lifepak_id, new_role = "id") %>% 
   step_nzv(all_predictors()) %>%
   step_normalize(all_predictors()) %>%
