@@ -397,7 +397,7 @@ train_outcome_wide <- train_nested_ema %>%
 tic()
 test_long_ema <- cdi_data_init %>% 
   dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
-  filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
+  filter(lifepak_id %in% test_nested_ema$lifepak_id) %>% 
   dplyr::select(-lifepak_id) %>% 
   group_by(lifepak_id_int) %>% 
   complete(response_no = 1:107) %>%
@@ -415,13 +415,13 @@ cores <- detectCores(logical = FALSE) - 1L
 
 ```{r}
 
-cdi_data_init %>% 
-  dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
-  filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
-  dplyr::select(-lifepak_id) %>% 
-  group_by(lifepak_id_int) %>% 
-  complete(response_no = 1:107) %>% 
-  summarise(across(where(is.numeric), ~n_distinct(.x)))
+# cdi_data_init %>% 
+#   dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
+#   filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
+#   dplyr::select(-lifepak_id) %>% 
+#   group_by(lifepak_id_int) %>% 
+#   complete(response_no = 1:107) %>% 
+#   summarise(across(where(is.numeric), ~n_distinct(.x)))
 
 
 
@@ -508,7 +508,7 @@ tidy_imputation <- function(.data){
 
   tidyverse_lags_test <- .data %>%
   dplyr::select(-c(response_no, lifepak_id_int)) %>%
-  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  dplyr::mutate(across(where(is.numeric), ~na_kalman(.x, model = "auto.arima")
   ))
 
 }
