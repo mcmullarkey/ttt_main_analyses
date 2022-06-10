@@ -369,18 +369,21 @@ test_nested_ema  <- testing(nested_ema_split)
 ```
 
 ```{r creating long form training and testing data}
-
+tic()
 train_long_ema <- cdi_data_init %>% 
   dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
   filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
   dplyr::select(-lifepak_id) %>% 
   group_by(lifepak_id_int) %>% 
   complete(response_no = 1:107) %>%
-  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
-  ),
+  dplyr::mutate(
+    across(where(is.numeric), 
+                        ~ na_kalman(.x, model = "auto.arima")
+    ),
   response_no = as.integer(response_no)) %>%
   ungroup() %>% 
   print()
+toc()
 
 # train_long_ema_data_ts_fresh <- train_long_ema %>% 
 #   dplyr::select(-contains("dep"))
@@ -391,23 +394,47 @@ train_outcome_wide <- train_nested_ema %>%
   ungroup() %>% 
   dplyr::select(yb_dep_diff)
 
+tic()
 test_long_ema <- cdi_data_init %>% 
   dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
   filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
   dplyr::select(-lifepak_id) %>% 
   group_by(lifepak_id_int) %>% 
   complete(response_no = 1:107) %>%
-  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  dplyr::mutate(across(where(is.numeric), ~na_kalman(.x, model = "auto.arima")
   ),
   response_no = as.integer(response_no)) %>%
   ungroup() %>% 
   print()
-
+toc()
 ## Creating the number of cores to use in parallel for tsfresh (Only using physical cores with logical = FALSE)
 
 cores <- detectCores(logical = FALSE) - 1L
 
 ```
+
+```{r}
+
+cdi_data_init %>% 
+  dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
+  filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
+  dplyr::select(-lifepak_id) %>% 
+  group_by(lifepak_id_int) %>% 
+  complete(response_no = 1:107) %>% 
+  summarise(across(where(is.numeric), ~n_distinct(.x)))
+
+
+
+  # group_modify(
+  #   function(.x, .y)
+  #   {
+  #       .x %>% mutate(across(where(is.numeric), ~case_when(...))
+  #   })
+
+
+
+```
+
 
 ```{python trying to run tsfresh on the long training data}
 
