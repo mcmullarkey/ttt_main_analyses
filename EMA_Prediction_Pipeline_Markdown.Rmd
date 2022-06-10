@@ -596,7 +596,7 @@ train_dtw_stats <-cdi_data_init %>%
   dplyr::select(-lifepak_id) %>% 
   group_by(lifepak_id_int) %>% 
   complete(response_no = 1:107) %>%
-  dplyr::mutate(across(where(is.numeric), ~na_interpolation(.x, option = "spline")
+  dplyr::mutate(across(where(is.numeric), ~na_kalman(.x, model = "auto.arima")
   ),
   response_no = as.integer(response_no)) %>%
   ungroup() %>% 
