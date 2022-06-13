@@ -1,5 +1,5 @@
 ---
-title: "Track to Treat Phase 1 Predicting Self Reported Depression Over Time"
+title: "Track to Treat Phase 1: Predicting Self Reported Depression Over Time"
 author: "Michael Mullarkey"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
@@ -271,7 +271,7 @@ ggsave('sad_distribution.jpg')
 ```
 ## Plotting Distributions for All EMA Variables Grouped by Person
 
-These plots can be in the supplement only (this document!)
+These plots can be in the supplement only (this document!) so they can include color to help highlight the differences more effectively.
 
 ```{r}
 
@@ -448,9 +448,9 @@ from tsfresh import extract_features
 
 ## Trying to apply that to our data
 
-print(r.train_long_ema) # Looks similar as the timeseries data
+# print(r.train_long_ema) # Looks similar as the timeseries data
 
-type(r.train_long_ema) # Has same type as timeseries
+# type(r.train_long_ema) # Has same type as timeseries
 
 extracted_features_r = extract_features(r.train_long_ema, column_id="lifepak_id_int", column_sort="response_no")
 
@@ -801,7 +801,9 @@ base_model_metrics_all_rs <- map_dfr(base_model_fit_all_rs, ~{
   mutate(recipe = case_when(
     recipe == "pca_Phv7i" ~ "pca",
     TRUE ~ recipe
-  )) %>% 
+  ),
+  lo_95_ci = mean - (1.96 * std_err),
+  hi_95_ci = mean + (1.96 * std_err)) %>% 
   print()
 
 ## Saving the predictions/actual differences here
@@ -841,13 +843,7 @@ base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
   rsq_metric <- .x %>% 
   collect_predictions(summarize = TRUE)
 
-}) %>% 
-  bind_cols(model_name_pred) %>% 
-  bind_cols(recipe_name_pred) %>% 
-  mutate(recipe = case_when(
-    recipe == "pca_Phv7i" ~ "pca",
-    TRUE ~ recipe
-  ))
+})
 
 ```
 
@@ -943,7 +939,7 @@ pre_rf_rs %>%
 
 ## Can We Reduce the Model Even Further?
 
-Yes, this model performs equivalently on RMSE and R^2 compared to the best performing models on both metrics using time series data.
+Yes, this model performs equivalently on RMSE and R^2 compared to the best performing models on both metrics (as their 95% confidence intervals overlap) using time series data.
 
 ```{r}
 
@@ -968,7 +964,11 @@ pre_red_rs <-
 toc()
 
 pre_red_rs %>% 
-  collect_metrics(summarize = TRUE)
+  collect_metrics(summarize = TRUE) %>% 
+  mutate(
+  lo_95_ci = mean - (1.96 * std_err),
+  hi_95_ci = mean + (1.96 * std_err)
+  )
 
 ```
 
