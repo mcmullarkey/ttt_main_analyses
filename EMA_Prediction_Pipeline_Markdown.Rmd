@@ -133,6 +133,12 @@ if(!require(glmnet)){install.packages('glmnet')}
 library(glmnet)
 if(!require(xgboost)){install.packages('xgboost')}
 library(xgboost)
+if(!require(flextable)){install.packages('flextable')}
+library(flextable)
+if(!require(gtsummary)){install.packages('gtsummary')}
+library(gtsummary)
+if(!require(gtExtras)){install.packages('gtExtras')}
+library(gtExtras)
 
 ## Let's set our number of cores for this document (May differ across computers)
 
@@ -969,6 +975,30 @@ pre_red_rs %>%
   lo_95_ci = mean - (1.96 * std_err),
   hi_95_ci = mean + (1.96 * std_err)
   )
+
+```
+# Getting Demographics
+
+```{r}
+
+pre_post_data %>% 
+  select(pb_childsex, pb_childgender, pb_childethnicity, pb_childage, pb_grade, pb_income, pb_single_parent) %>% 
+  mutate(pb_childsex = str_to_title(pb_childsex),
+         pb_childgender = case_when(
+         pb_childgender ==  "Additional gender category/identity or a combination of listed options: please specify" ~ "One or more additional genders",
+         TRUE ~ pb_childgender
+         ),
+         pb_income = fct_relevel(pb_income, "$0-$19,000", "$20,000-$39,000","$40,000-$59,000","$60,000-$79,000","$80,000 - $99,000"),
+         pb_grade = fct_relevel(pb_grade, "10th grade", "11th grade", "12th grade", after = 5)
+         ) %>% 
+  tbl_summary(type = list(pb_childage ~ "continuous"),
+              statistic = list(pb_childage ~ "{mean} ({sd})"),
+              label = list(pb_income ~ "Household Income", pb_childsex ~ "Child's Sex at Birth", pb_childgender ~ "Child's Gender Identity",
+                           pb_childethnicity ~ "Child's Racial/Ethnic Identity", pb_grade ~ "Child's Grade", pb_childage ~ "Child's Age: Mean (SD)",
+                           pb_single_parent ~ "Children With Single Parent")) %>% 
+  modify_header(label ~ "**Demographics**") %>% 
+  as_flex_table()# %>% 
+  # save_as_docx(path = "ttt_1_demographics.docx")
 
 ```
 
