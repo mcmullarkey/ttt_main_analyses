@@ -677,17 +677,6 @@ rec_ema_raw <-
 
 ```
 
-```{r creating a recipe for running a predictive model with the umap features}
-
-## This is supervised, non-linear dimensionality reduction without needing to use an autoencoder
-
-# rec_ema_umap <- 
-#   recipes::recipe(dep_deteriorate ~ ., data = train_data_with_summ_stats_imp_nzv) %>% 
-#   update_role(id, new_role = "id") %>% 
-#   step_umap(all_predictors(), outcome = vars(dep_deteriorate), num_comp = 5)
-
-```
-
 
 ```{r testing whether the preliminary recipe works within a workflow}
 
