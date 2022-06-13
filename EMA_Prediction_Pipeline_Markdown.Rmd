@@ -355,6 +355,12 @@ cdi_data_init %>%
 
 ```
 
+# Building ML Models
+
+## Creating a Train/Test Split
+
+To test the best peforming model out of sample, we first needed to create a train/test split with 80% of the participants including in training while 20% were "held out" for the test set. Here and throughout we will use the `tidymodels` framework to evaluate our models. More resources on `tidymodels` can be found [here.](https://www.tmwr.org/)
+
 ```{r nesting the ema data for wide format and rsample breaking things up into training and testing}
 
 ## Nesting the data so the ema data can be included within a wide format (Helps us break up into training/testing + create custom recipe steps)
@@ -376,6 +382,12 @@ train_nested_ema <- training(nested_ema_split)
 test_nested_ema  <- testing(nested_ema_split)
 
 ```
+
+## Cleaning Data for Modeling
+
+The two most important steps here are: <br>
+1. Making sure all participants have the same number of potential responses (which allows us to do our later feature engineering properly) <br>
+2. Imputing missing time series/EMA data for participants using the Kalman filter.
 
 ```{r creating long form training and testing data}
 tic()
@@ -422,50 +434,17 @@ cores <- detectCores(logical = FALSE) - 1L
 
 ```
 
-```{r}
-
-# cdi_data_init %>% 
-#   dplyr::select(lifepak_id:response_no, c(bad, control:movement, sad),lifepak_id_int) %>% 
-#   filter(lifepak_id %in% train_nested_ema$lifepak_id) %>% 
-#   dplyr::select(-lifepak_id) %>% 
-#   group_by(lifepak_id_int) %>% 
-#   complete(response_no = 1:107) %>% 
-#   summarise(across(where(is.numeric), ~n_distinct(.x)))
-
-
-
-  # group_modify(
-  #   function(.x, .y)
-  #   {
-  #       .x %>% mutate(across(where(is.numeric), ~case_when(...))
-  #   })
-
-
-
-```
-
+## Perfrom tsfresh Feature Engineering on All Time Series
 
 ```{python trying to run tsfresh on the long training data}
 
 ## Using https://tsfresh.readthedocs.io/en/latest/text/quick_start.html
-## If I try to impute/filter I end up with a different number of rows, so that's not super helpful. Might be names collisons with the example I loaded earlier or something else about how I'm running the Python code I don't understand yet
 
 ## Use this page as a guideline for switching back and forth between Pyton and R within RStudio/RMarkdown https://rstudio.github.io/reticulate/articles/r_markdown.html
 
 ## Example from the docs works https://tsfresh.readthedocs.io/en/latest/text/quick_start.html
 
-# from tsfresh.examples.robot_execution_failures import download_robot_execution_failures,load_robot_execution_failures
-# download_robot_execution_failures()
-# timeseries, y = load_robot_execution_failures()
-# 
-# print(timeseries)
-# 
-# type(timeseries)
-# 
-# timeseries.dtypes
-# 
 from tsfresh import extract_features
-# extracted_features = extract_features(timeseries, column_id="id", column_sort="time")
 
 ## Trying to apply that to our data
 
@@ -473,13 +452,13 @@ print(r.train_long_ema) # Looks similar as the timeseries data
 
 type(r.train_long_ema) # Has same type as timeseries
 
-r.train_long_ema.dtypes # If we read in this data with the depression outcome as a boolean (which shouldn't be in the data at all) tsfresh won't work
-
-r.train_long_ema.dtypes # So we read in the updated data without the depression outcome as boolean
-
 extracted_features_r = extract_features(r.train_long_ema, column_id="lifepak_id_int", column_sort="response_no")
 
 ```
+
+## Removing Irrelevant Features
+
+Due to the automated nature of this feature engineering, some of the features will not be relevant. If all features are NA or 0 we're going to drop them as they provide no information. A later preprocessing step will drop features that vary so little they are unlikely to contain information.
 
 ```{r looking at the tsfresh object}
 
@@ -506,6 +485,10 @@ ts_fresh_id <- ts_fresh_features %>%
   
 
 ```
+
+## Perform Dynamic Time Warp Feature Engineering
+
+Dynamic Time Warp analyses can be used to quantify how "distant" different time series within the same person are from one another. One way to think about these analyses is quantifying how similar each time series of symptoms is within any given person. For an example of dynamic time warp analyses among patients with depression, see [this paper.](https://bmcmedicine.biomedcentral.com/articles/10.1186/s12916-020-01867-5)
 
 ```{r writing a function to create dynamic time warp features}
 
@@ -628,6 +611,10 @@ toc()
 
 ```
 
+## Join Together All Engineered Features for Further Preprocessing
+
+Here is where we also remove all features with near-zero variance, normalize our predictors, and impute any missing data among features using the KNN algorithm.
+
 ```{r running all preprocessing once}
 
 ## Merge tsfresh with dynamic time warp features
@@ -659,6 +646,9 @@ train_imp_nzv <- rec_ema %>%
 toc()
 
 ```
+## Create PCA Preprocessing Recipe
+
+Since our data currently contains many more features than observations, the predictive performance of the model may be improved out of sample by reducing the number of features. We do this by doing a principal components analysis that reduces our feature set to factors accounting for 95% of the variance across all features.
 
 ```{r creating recipe for running a predictive model with pca generated features}
 
@@ -672,6 +662,10 @@ rec_ema_pca <-
 ## Could also work on making threshold tunable
 
 ```
+
+## Create Raw Features Preprocessing Recipe
+
+However, at least some ML models (eg elastic net) are specifically designed to handle situations where the number of features is far greater than the number of observations. For that reason, we will also test versions of the models that include all features generated via feature engineering and preprocessing.
 
 ```{r creating recipe for running a predictive model with the raw features}
 
