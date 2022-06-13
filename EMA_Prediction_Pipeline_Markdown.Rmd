@@ -780,8 +780,6 @@ model_name <- map(1:6, ~{
 
 #Then do the same for preprocessing recipes
 
-base_model_wfs[[3]]$pre$actions$recipe$recipe$steps[[1]]$id
-
 recipe_name <- map(1:6, ~{
   base_model_wfs[[.x]]$pre$actions$recipe$recipe$steps[[1]]$id
 }) %>% 
@@ -800,16 +798,56 @@ base_model_metrics_all_rs <- map_dfr(base_model_fit_all_rs, ~{
 }) %>% 
   bind_cols(model_name) %>% 
   bind_cols(recipe_name) %>% 
+  mutate(recipe = case_when(
+    recipe == "pca_Phv7i" ~ "pca",
+    TRUE ~ recipe
+  )) %>% 
   print()
 
 ## Saving the predictions/actual differences here
+
+# Need to create a different version of model name without the duplicates
+
+model_name_pred <- map(1:6, ~{
+  base_model_wfs[[.x]]$fit$actions$model$spec$engine
+}) %>% 
+  enframe() %>% 
+  unnest(value) %>% 
+  select(model = value)
+
+# Then do the same for preprocessing recipes
+
+recipe_name_pred <- map(1:6, ~{
+  base_model_wfs[[.x]]$pre$actions$recipe$recipe$steps[[1]]$id
+}) %>% 
+  enframe() %>% 
+  unnest(value) %>% 
+  select(recipe = value) %>% 
+  add_row(recipe = rep("raw", 3))
+
+# Put together models and preprocessing for descriptions
+
+descrip_df <- model_name_pred %>% 
+  bind_cols(recipe_name_pred) %>% 
+  mutate(recipe = case_when(
+    recipe == "pca_Phv7i" ~ "pca",
+    TRUE ~ recipe
+  )) %>% 
+  unite("description", model:recipe, sep = " with ") %>% 
+  mutate(description = str_to_title(description))
 
 base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
   
   rsq_metric <- .x %>% 
   collect_predictions(summarize = TRUE)
 
-})
+}) %>% 
+  bind_cols(model_name_pred) %>% 
+  bind_cols(recipe_name_pred) %>% 
+  mutate(recipe = case_when(
+    recipe == "pca_Phv7i" ~ "pca",
+    TRUE ~ recipe
+  ))
 
 ```
 
@@ -817,11 +855,15 @@ base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
 
 ```{r}
 
-map(base_model_preds_all_rs, ~{
+map2(base_model_preds_all_rs, descrip_df$description, ~{
+  
+  label <- .y
+  
   .x %>% 
   ggplot(aes(x = yb_dep_diff, y = .pred)) +
   geom_point() +
-  geom_abline(col = "dodgerblue1")
+  geom_abline(col = "dodgerblue1") +
+  labs(title = glue("{label}"))
 }) 
   
 
