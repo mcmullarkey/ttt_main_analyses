@@ -871,7 +871,7 @@ map2(base_model_preds_all_rs, descrip_df$description, ~{
 
 # Can We Match the Accuracy of These Models with Data Just From Baseline?
 
-## Clean Into Training Data
+## Clean Baseline Training Data
 
 ```{r}
 
@@ -942,6 +942,8 @@ pre_rf_rs %>%
 ```
 
 ## Can We Reduce the Model Even Further?
+
+Yes, this model performs equivalently on RMSE and R^2 compared to the best performing models on both metrics using time series data.
 
 ```{r}
 
