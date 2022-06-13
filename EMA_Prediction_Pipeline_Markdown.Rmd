@@ -1,5 +1,5 @@
 ---
-title: "Practicing_EMA_Prediction_Pipeline"
+title: "Track to Treat Phase 1 Predicting Self Reported Depression Over Time"
 author: "Michael Mullarkey"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
@@ -15,23 +15,35 @@ geometry: margin=0.50in
 ```{r setup, include=FALSE, cache = FALSE}
 require("knitr")
 ## setting working directory
-knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE, include = FALSE)
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE, include = TRUE)
 ```
+
+# Topline Findings
+
+ML models using advanced feature engineering on time series of depression symptoms predicted minimal variance in change in self-reported depression over 3 months among high symptom youth. <br>
+<br>
+A similar amount of variance could be predicted using one time assessments of the Beck's Hopelessness Scale (BHS) and Behavioral Activation for Depression Scale (BADS). <br>
+<br>
+The time series lasted 3 weeks and contained up to 5 responses per day, while the BHS and BADS total 13 items and take ~1-2 minutes to complete.<br>
+<br>
+Even advanced feature engineering on time series of self-reported depression symptoms appears to provide little value at this sample size. <br>
+<br>
+Higher sample sizes with these methods are incredibly resource intensive, and other uses of resources may be preferable if between-person prediction of symptom change is the goal.
+
+# Setting Up Python Environment
+
+We need to set up the python environment so we can do part of our advanced feature engineering later in the process. <br>
+<br>
+The python library `tsfresh` allows us to automatically calculate many time series features all at once. These include descriptive statistics, statistics derived from fast fourier transforms, and many others. These features have been used to predict outcomes like [volcanic eruption forecasting, activity recognition from passive sensors](https://tsfresh.readthedocs.io/en/latest/text/introduction.html), and [patient-specific models for health outcomes.](https://www.nature.com/articles/s41584-018-0130-5) <br>
+<br>
+For a full list of `tsfresh` features see its [documentation](https://tsfresh.readthedocs.io/en/latest/text/list_of_features.html) 
 
 ```{r}
 
-## Need to load tensorflow into r (since it's a dependency for the embed package with the umap non-linear dimensionality reduction) before we point to the Python environment
-
-# library(tensorflow)
-# tensorflow::install_tensorflow()
-
 ## Setting up pyton within Rstudio
 
-## Using these steps https://support.rstudio.com/hc/en-us/articles/360023654474-Installing-and-Configuring-Python-with-RStudio
-
-## For step 2 I used to use conda to make sure I used a later Python off the system path as outlined here, but that caused more headaches so I just follow all steps outlined in the website above instead. https://support.rstudio.com/hc/en-us/articles/360022909454-Best-Practices-for-Using-Python-with-RStudio-Connect
-
-## Here's a video that also walks through the process https://docs.rstudio.com/tutorials/user/using-python-with-rstudio-and-reticulate/
+## The most reliable way I've found to do this is to create a conda environment
+## via a .yml file, then point at that environment each time on startup
 
 if(!require(reticulate)){install.packages('reticulate')}
 library(reticulate)
@@ -51,6 +63,8 @@ py_config()
 
 ```
 
+## Testing that Python is Working in this Notebook
+
 ```{python}
 
 # Checking Python is working within RStudio
@@ -59,6 +73,7 @@ py_config()
 
 ```
 
+# Load R Packages 
 
 ```{r loading packages}
 
@@ -106,12 +121,6 @@ if(!require(pheatmap)){install.packages('pheatmap')}
 library(pheatmap)
 if(!require(diffdf)){install.packages('diffdf')}
 library(diffdf)
-# if(!require(tensorflow)){install.packages('tensorflow')}
-# library(tensorflow)
-# if(!require(keras)){install.packages('keras')}
-# library(keras)
-# if(!require(embed)){install.packages('embed')}
-# library(embed)
 if(!require(lubridate)){install.packages('lubridate')}
 library(lubridate)
 if(!require(ggdist)){install.packages('ggdist')}
@@ -131,7 +140,9 @@ registerDoMC(cores = 7)
 
 ```
 
-## Reading in the Data
+# Reading in the Data
+
+## Pre Post Data
 
 ```{r reading in pre post data}
 
@@ -148,7 +159,7 @@ pre_post_data <- read_csv("cleaned_qualtrics_ttt_phase_1.csv") %>%
 pre_post_data
 
 ```
-
+## EMA Data
 
 ```{r reading in ema data}
 
@@ -158,6 +169,8 @@ ema_data_init <- read_csv("cleaned_lifepak_ttt_phase_1.csv") %>%
   clean_names()
 
 ```
+
+# Do Quality Control on Data
 
 ```{r}
 
@@ -207,7 +220,7 @@ ema_data_extra %>%
   
 ```
 
-# Joining Youth Pre/3 Month CDI to LifePak Data 
+# Joining Youth Pre/3 Month CDI to EMA LifePak Data 
 
 ```{r}
 
@@ -216,6 +229,7 @@ cdi_data_init <- ema_data_extra %>%
   mutate(lifepak_id_int = as.integer(lifepak_id))
 
 ```
+
 # Looking at How Frequently Sessions Were Completed
 
 ```{r}
@@ -230,42 +244,7 @@ cdi_data_init %>%
 ```
 # Descriptive Statistics Grouped by Person
 
-```{r}
-
-# cdi_data_init %>% 
-#   group_by(lifepak_id) %>% 
-#   summarize(mean = mean(bad, na.rm = TRUE), sd = sd(bad, na.rm = TRUE)) %>% 
-#   mutate(sd_range = if_else(sd < 15, "SD < 15", "SD > 15")) %>% 
-#   ggplot(aes(x = lifepak_id, ydist = "norm", arg1 = mean, arg2 = sd)) +
-#   stat_halfeye(position = "dodge") +
-#   theme_minimal() +
-#   theme(axis.text.x = element_blank()) +
-#   ylim(0, 100) +
-#   facet_wrap(~sd_range)
-  
-
-```
-
-```{r}
-
-# cdi_data_init %>% 
-#   group_by(lifepak_id) %>% 
-#   summarize(mean = mean(bad, na.rm = TRUE), sd = sd(bad, na.rm = TRUE)) %>% 
-#   mutate(sd_range = case_when(
-#     sd < 10 ~ "SD < 10", 
-#     sd >= 10 & sd < 20 ~"20 > SD > 10",
-#     sd >= 20 ~ "SD > 20"
-#     )
-# ) %>% 
-#   ggplot(aes(x = lifepak_id, ydist = distributional::dist_normal(mean, sd))) +
-#   stat_halfeye(position = "dodge") +
-#   theme_minimal() +
-#   theme(axis.text.x = element_blank()) +
-#   ylim(0, 100) +
-#   facet_wrap(~sd_range)
-
-```
-## Plotting Raw Data for Bad by Participant
+## Plotting Raw Data for Sad by Participant
 
 We can use this as a figure in the main text to illustrate how the distributions are different across participants.
 
@@ -290,8 +269,38 @@ cdi_data_init %>%
 ggsave('sad_distribution.jpg')
 
 ```
+## Plotting Distributions for All EMA Variables Grouped by Person
 
-## Creating Table of Summary Statistics for EMA Data by Participant
+These plots can be in the supplement only (this document!)
+
+```{r}
+
+ema_names <- cdi_data_init %>% 
+  select(bad:movement, sad, -best) %>% 
+  names()
+
+map(ema_names, ~{
+  label <- str_to_title(.x)
+  
+  cdi_data_init %>% 
+  ggplot(aes(x = .data[[.x]], color = .data[[.x]])) +
+  geom_dots(alpha = 0.6) +
+  scale_color_viridis_c(option = "turbo") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title.position = "plot",
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank()) +
+  facet_wrap(~lifepak_id) +
+  labs(title = glue("Distributions of '{label}' EMA Ratings Grouped by Participant"),
+    subtitle = "Minimum X-Axis Value is 0 and Maximum X-Axis Value is 100",
+    x = "")
+})
+
+```
+
+
+## Creating Table of Summary Statistics for All EMA Data by Participant
 
 This table can be part of the supplement.
 
