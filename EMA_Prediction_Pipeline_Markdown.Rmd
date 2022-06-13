@@ -677,6 +677,11 @@ rec_ema_raw <-
 
 ```
 
+## Set up ML Modeling Workflows
+
+Within `tidymodels` we can reuse preprocessing recipes with different ML models. This is a "by hand" version of fitting each model once to make sure there aren't obvious errors. We chose to test elastic net, random forest, and XGBoost models. <br>
+<br>
+Note: the `workflow_map` function now provides a smoother interface for testing across many models using the same data.
 
 ```{r testing whether the preliminary recipe works within a workflow}
 
@@ -732,9 +737,13 @@ ema_rf_wf_fit
 
 ```
 
+## Evaluating All Models Using K-Fold Cross Validation
+
+To get an estimate of out of sample performance, we tested all models using 4 fold cross-validation repeated 10 times. This approach also helps us quantify the uncertainty in how well any given model will predict outcomes.
+
 ```{r}
 
-## Fit resamples is having a hard time running these models (no errors but just continuing trying to compute for long periods of time without actually completing the computation). Might have something to do with this issue: https://github.com/tidymodels/tune/issues/206
+## Evaluate all models using K-Fold Cross Validation
 
 base_model_fit_all_rs <- map2(base_model_wfs, base_model_data_list, ~{
   
@@ -758,12 +767,39 @@ rf_fit_rs
 
 ## Get metrics here
 
-base_model_metrics_all_rs <- map(base_model_fit_all_rs, ~{
+# First need to generate model names so we can interpret which model is which
+
+model_name <- map(1:6, ~{
+  base_model_wfs[[.x]]$fit$actions$model$spec$engine
+}) %>% 
+  enframe() %>% 
+  unnest(value) %>% 
+  select(model = value) %>% 
+  mutate(count = c(2,2,2,2,2,2)) %>% 
+  uncount(count)
+
+#Then do the same for preprocessing recipes
+
+base_model_wfs[[3]]$pre$actions$recipe$recipe$steps[[1]]$id
+
+recipe_name <- map(1:6, ~{
+  base_model_wfs[[.x]]$pre$actions$recipe$recipe$steps[[1]]$id
+}) %>% 
+  enframe() %>% 
+  unnest(value) %>% 
+  select(recipe = value) %>% 
+  mutate(count = c(2,2,2)) %>% 
+  uncount(count) %>% 
+  add_row(recipe = rep("raw", 6))
+
+base_model_metrics_all_rs <- map_dfr(base_model_fit_all_rs, ~{
   
   rsq_metric <- .x %>% 
   collect_metrics(summarize = TRUE)
 
 }) %>% 
+  bind_cols(model_name) %>% 
+  bind_cols(recipe_name) %>% 
   print()
 
 ## Saving the predictions/actual differences here
@@ -773,18 +809,7 @@ base_model_preds_all_rs <- map(base_model_fit_all_rs, ~{
   rsq_metric <- .x %>% 
   collect_predictions(summarize = TRUE)
 
-}) %>% 
-  print()
-
-# base_model_plots_all_rs <- map(base_model_fit_all_rs, ~{
-#   
-#   auc <- .x %>% 
-#   collect_predictions(summarize = TRUE) %>% 
-#   roc_curve(truth = dep_deteriorate, .estimate = .pred_TRUE) %>% 
-#   autoplot()
-# 
-# }) %>% 
-#   print()
+})
 
 ```
 
