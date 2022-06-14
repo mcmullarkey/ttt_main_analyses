@@ -982,7 +982,7 @@ pre_red_rs %>%
 ```{r}
 
 pre_post_data %>% 
-  select(pb_childsex, pb_childgender, pb_childethnicity, pb_childage, pb_grade, pb_income, pb_single_parent) %>% 
+  select(pb_childsex, pb_childgender, pb_childethnicity, pb_childage, pb_grade, pb_income, pb_caregiver1_7, pb_single_parent) %>% 
   mutate(pb_childsex = str_to_title(pb_childsex),
          pb_childgender = case_when(
          pb_childgender ==  "Additional gender category/identity or a combination of listed options: please specify" ~ "One or more additional genders",
@@ -995,7 +995,7 @@ pre_post_data %>%
               statistic = list(pb_childage ~ "{mean} ({sd})"),
               label = list(pb_income ~ "Household Income", pb_childsex ~ "Child's Sex at Birth", pb_childgender ~ "Child's Gender Identity",
                            pb_childethnicity ~ "Child's Racial/Ethnic Identity", pb_grade ~ "Child's Grade", pb_childage ~ "Child's Age: Mean (SD)",
-                           pb_single_parent ~ "Children With Single Parent")) %>% 
+                           pb_single_parent ~ "Children With Single Parent", pb_caregiver1_7 ~ "Primary Caregiver Education")) %>% 
   modify_header(label ~ "**Demographics**") %>% 
   as_flex_table()# %>% 
   # save_as_docx(path = "ttt_1_demographics.docx")
