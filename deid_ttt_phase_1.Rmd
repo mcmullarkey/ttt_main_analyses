@@ -1,0 +1,67 @@
+---
+title: "Deidentifyin g Track to Treat Phase 1 Data"
+author: "Michael Mullarkey"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 5
+    toc_float:
+      collapsed: no
+      smooth_scroll: no
+geometry: margin=0.50in
+---
+
+```{r setup, include=FALSE, cache = FALSE}
+require("knitr")
+## setting working directory
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, warning = FALSE, message = FALSE, include = TRUE)
+```
+
+```{r}
+
+library(tidyverse)
+
+```
+
+```{r}
+
+pre_post_id <- read_csv("cleaned_qualtrics_ttt_phase_1.csv") %>% 
+  clean_names()
+
+```
+
+```{r}
+
+pre_post_id %>% 
+  select(p3m_scared_a_13:sum_yb_ucla)
+
+```
+
+```{r}
+
+pre_post_deid <- pre_post_id %>% 
+  select(-contains("ip_address"),-assent_signature,-contains("phone"),-contains("location_latitude"),-contains("location_longitude"),-contains("childname"),-consent_signature,
+         -contains("child_name"),-c(pb_address:pb_childemail),-c(p3m_address:p3m_childemail))
+
+write_csv(pre_post_deid, "deid_cleaned_qualtrics_ttt_phase_1.csv")
+
+```
+
+```{r}
+
+ema_data_id <- read_csv("cleaned_lifepak_ttt_phase_1.csv") %>% 
+  clean_names()
+
+ema_data_id %>% 
+  select(where(is.character),where(is.factor)) %>% 
+  glimpse()
+
+ema_data_deid <- ema_data_id %>% 
+  select(lifepak_id, response_no, notification_time, response_time, time_diff, completed_session, bad:sad, -other,-best) %>% 
+  print()
+
+write_csv(ema_data_deid, "deid_cleaned_lifepak_ttt_phase_1.csv")
+
+```
+
